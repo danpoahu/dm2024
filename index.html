@@ -34,9 +34,21 @@
 
         .logo {
             margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
 
-        .logo img {
+        .app-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 22px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .logo-text {
             max-width: 100%;
             height: auto;
             width: 400px;
@@ -155,7 +167,12 @@
                 padding: 30px 20px;
             }
 
-            .logo img {
+            .app-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .logo-text {
                 width: 300px;
             }
 
@@ -177,7 +194,8 @@
 <body>
     <div class="container">
         <div class="logo">
-            <img src="DiscoverMoreLogo.png" alt="Anchor Church - Discover More">
+            <img src="Icon_Android.jpg" alt="Discover More App Icon" class="app-icon">
+            <img src="DiscoverMoreLogo.png" alt="Anchor Church - Discover More" class="logo-text">
         </div>
 
         <div class="subtitle">Welcome</div>
