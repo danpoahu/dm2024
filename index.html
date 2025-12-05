@@ -90,9 +90,6 @@
         .store-badge {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             display: inline-block;
-            height: 60px;
-            width: 180px;
-            overflow: hidden;
         }
 
         .store-badge:hover {
@@ -101,10 +98,10 @@
         }
 
         .store-badge img {
-            height: 60px;
-            width: 180px;
-            object-fit: cover;
-            object-position: center;
+            height: auto;
+            width: 200px;
+            max-width: 100%;
+            display: block;
         }
 
         .features {
@@ -184,12 +181,40 @@
                 flex-direction: column;
             }
 
-            .store-badge {
-                height: 55px;
-                width: 165px;
+            .store-badge img {
+                width: 180px;
             }
         }
     </style>
+    <script>
+        // Detect Android and improve Play Store link handling
+        function openPlayStore(e) {
+            const isAndroid = /android/i.test(navigator.userAgent);
+            
+            if (isAndroid) {
+                e.preventDefault();
+                
+                // Try market:// protocol first (works better on Android devices)
+                const marketUrl = 'market://details?id=app.anchor.discovermore.android';
+                const playStoreUrl = 'https://play.google.com/store/apps/details?id=app.anchor.discovermore.android';
+                
+                // Attempt to open the Play Store app
+                window.location.href = marketUrl;
+                
+                // Fallback to web URL after a short delay if app doesn't open
+                setTimeout(() => {
+                    window.open(playStoreUrl, '_blank');
+                }, 500);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const playStoreLink = document.getElementById('play-store-link');
+            if (playStoreLink) {
+                playStoreLink.addEventListener('click', openPlayStore);
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -208,12 +233,15 @@
         <div class="download-section">
             <div class="download-title">Download the App</div>
             <div class="store-badges">
-                <a href="https://play.google.com/store/apps/details?id=app.anchor.discovermore.android" class="store-badge" target="_blank" rel="noopener noreferrer">
+                <a href="https://play.google.com/store/apps/details?id=app.anchor.discovermore.android" id="play-store-link" class="store-badge" target="_blank" rel="noopener noreferrer">
                     <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play">
                 </a>
                 <a href="https://apps.apple.com/us/app/anchor-discover-more/id6748889981" class="store-badge" target="_blank" rel="noopener noreferrer">
                     <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83&amp;releaseDate=1733011200" alt="Download on the App Store">
                 </a>
+            </div>
+            <div style="margin-top: 20px; font-size: 13px; color: #999; line-height: 1.5;">
+                <strong style="color: #666;">Android users:</strong> If the Play Store link doesn't work, open the Play Store app and search for "Anchor Discover More"
             </div>
         </div>
 
