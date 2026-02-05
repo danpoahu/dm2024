@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+//This is a redirect page right to app stores//
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,15 +27,18 @@
             padding: 3rem 2rem;
             max-width: 500px;
             width: 100%;
-            background: white;
+            background: #f5f0e8;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
         .app-icon {
             width: 80px;
             height: 80px;
-            margin: 0 auto 1.5rem;
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
             border-radius: 18px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
@@ -84,6 +88,13 @@
         @media (max-width: 480px) {
             .container {
                 padding: 2rem 1.5rem;
+            }
+
+            .app-icon {
+                width: 64px;
+                height: 64px;
+                top: 1.5rem;
+                left: 1.5rem;
             }
 
             .logo {
@@ -160,7 +171,7 @@
 
 <body>
     <div class="container">
-        <img src="icon_Android.jpeg" alt="Discover More App Icon" class="app-icon">
+        <img src="Icon_Android.jpg" alt="Discover More App Icon" class="app-icon">
         <img src="DiscoverMoreLogo.png" alt="Discover More" class="logo">
         <h1>Discover More</h1>
         <p>Download the Discover More app to stay connected with Anchor Church.</p>
