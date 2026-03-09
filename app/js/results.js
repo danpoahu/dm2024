@@ -1,16 +1,71 @@
 import { navigate, userData } from './app.js';
 import { SPIRITUAL_GIFTS } from './data.js';
 
+const DISC_INFO = {
+  D: {
+    label: 'Dominant',
+    color: '#4CAF50',
+    description: 'D personalities are dominant, direct, and task-oriented. They are decisive, competitive, and results-driven.',
+    advice: [
+      'Focus on results and bottom line',
+      'Be direct and to the point',
+      'Give them authority to make decisions',
+      'Provide challenges and variety'
+    ]
+  },
+  I: {
+    label: 'Influential',
+    color: '#FF9800',
+    description: 'I personalities are influential, outgoing, and people-oriented. They are enthusiastic, optimistic, and collaborative.',
+    advice: [
+      'Provide a fun, social environment',
+      'Give verbal recognition and praise',
+      'Avoid too many details and routine',
+      'Let them express their ideas openly'
+    ]
+  },
+  S: {
+    label: 'Steady',
+    color: '#A67C52',
+    description: 'S personalities are steady, stable, and people-oriented. They are patient, reliable, and analytical.',
+    advice: [
+      'Provide a stable, secure environment',
+      'Give them time to adjust to changes',
+      'Show sincere appreciation',
+      'Be patient and supportive'
+    ]
+  },
+  C: {
+    label: 'Compliant',
+    color: '#D4B896',
+    description: 'C personalities are compliant, careful, and task-oriented. They are goal-oriented, detail-focused, and competent.',
+    advice: [
+      'Provide clear expectations and standards',
+      'Give them time to analyze information',
+      'Focus on quality and accuracy',
+      'Respect their need for independence'
+    ]
+  }
+};
+
 export function renderResults(container) {
   const data = userData;
   if (!data) { navigate('/dashboard'); return; }
 
-  // DISC totals
   const dTotal = sum(data, 'D');
   const iTotal = sum(data, 'I');
   const sTotal = sum(data, 'S');
   const cTotal = sum(data, 'C');
-  const discMax = Math.max(dTotal, iTotal, sTotal, cTotal, 1);
+
+  // Sort scores to find top 2
+  const sorted = [
+    { letter: 'D', score: dTotal },
+    { letter: 'I', score: iTotal },
+    { letter: 'S', score: sTotal },
+    { letter: 'C', score: cTotal }
+  ].sort((a, b) => b.score - a.score);
+
+  const topTwo = [sorted[0].letter, sorted[1].letter];
 
   // Spiritual Gifts scores
   const gifts = [];
@@ -22,58 +77,52 @@ export function renderResults(container) {
   }
   gifts.sort((a, b) => b.score - a.score);
 
-  // DISC quadrant position
-  const taskPeople = (iTotal + sTotal) - (dTotal + cTotal);
-  const extroIntro = (dTotal + iTotal) - (sTotal + cTotal);
-
   container.innerHTML = `
     <div class="screen results-screen">
-      <div class="results-header">
-        <h2>Your Results</h2>
-        <button class="btn btn-link back-btn" id="results-back">&larr; Dashboard</button>
+      <button class="results-close-btn" id="results-back">&times;</button>
+      <div class="results-top">
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" class="results-logo">
+        <h2 class="results-title">Survey Results</h2>
+        <div class="results-divider"></div>
       </div>
 
       <div class="results-section">
-        <h3>DISC Personality Profile</h3>
-        <div class="disc-bars">
-          <div class="disc-bar-row">
-            <span class="disc-label" style="color:#FF9800">D</span>
-            <div class="disc-bar-track"><div class="disc-bar-fill disc-d" style="width:${(dTotal/25)*100}%">${dTotal}</div></div>
-          </div>
-          <div class="disc-bar-row">
-            <span class="disc-label" style="color:#4CAF50">I</span>
-            <div class="disc-bar-track"><div class="disc-bar-fill disc-i" style="width:${(iTotal/25)*100}%">${iTotal}</div></div>
-          </div>
-          <div class="disc-bar-row">
-            <span class="disc-label" style="color:#A67C52">S</span>
-            <div class="disc-bar-track"><div class="disc-bar-fill disc-s" style="width:${(sTotal/25)*100}%">${sTotal}</div></div>
-          </div>
-          <div class="disc-bar-row">
-            <span class="disc-label" style="color:#D4B896">C</span>
-            <div class="disc-bar-track"><div class="disc-bar-fill disc-c" style="width:${(cTotal/25)*100}%">${cTotal}</div></div>
+        <div class="disc-quadrant-grid">
+          <div class="disc-axis-label disc-axis-top">Extroverted</div>
+          <div class="disc-axis-label disc-axis-bottom">Introverted</div>
+          <div class="disc-axis-label disc-axis-left">Task</div>
+          <div class="disc-axis-label disc-axis-right">People</div>
+          <div class="disc-grid">
+            ${buildQuadrantBox('D', dTotal, topTwo)}
+            ${buildQuadrantBox('I', iTotal, topTwo)}
+            ${buildQuadrantBox('C', cTotal, topTwo)}
+            ${buildQuadrantBox('S', sTotal, topTwo)}
           </div>
         </div>
-
-        <div class="disc-quadrant">
-          <canvas id="disc-chart" width="280" height="280"></canvas>
+        <div class="disc-type-label">
+          <span class="disc-type-high" style="color:${DISC_INFO[sorted[0].letter].color}">${sorted[0].letter}</span>
+          <span class="disc-type-slash">/</span>
+          <span class="disc-type-low" style="color:${DISC_INFO[sorted[1].letter].color}">${sorted[1].letter}</span>
         </div>
-        <div class="disc-type">Your type: <strong>${data.discH || ''}${data.discL || ''}</strong></div>
+        <p class="disc-hint">Tap any quadrant for more info</p>
       </div>
 
+      <div class="results-divider"></div>
+
       <div class="results-section">
-        <h3>Spiritual Gifts</h3>
-        <div class="gifts-list">
-          ${gifts.map((g, idx) => `
-            <div class="gift-row ${g.score >= 8 ? 'gift-highlight' : ''}" onclick="this.querySelector('.gift-detail')?.classList.toggle('show')">
-              <div class="gift-row-header">
-                <span class="gift-rank">${idx + 1}.</span>
-                <span class="gift-name">${g.name}</span>
-                <span class="gift-score-badge ${g.score >= 8 ? 'high-score' : ''}">${g.score}</span>
+        <h3 class="gifts-title">Your Spiritual Gifts</h3>
+        <div class="gifts-list-v2">
+          ${gifts.map(g => `
+            <div class="gift-card-v2 ${g.score >= 8 ? 'gift-top' : ''}" data-gift="${g.index}">
+              <div class="gift-card-v2-header">
+                <span class="gift-card-v2-name">${g.name}</span>
+                <span class="gift-card-v2-score">Score: ${g.score}</span>
+                <span class="gift-card-v2-chevron">&#9660;</span>
               </div>
-              <div class="gift-detail">
-                <p>${SPIRITUAL_GIFTS[g.index].description}</p>
-                <p class="gift-verse">${SPIRITUAL_GIFTS[g.index].verse}</p>
-                <p class="gift-teams"><strong>Teams:</strong> ${SPIRITUAL_GIFTS[g.index].teams}</p>
+              <div class="gift-card-v2-body">
+                <p class="gift-card-v2-desc">${SPIRITUAL_GIFTS[g.index].description}</p>
+                <p class="gift-card-v2-verse">${SPIRITUAL_GIFTS[g.index].verse}</p>
+                <p class="gift-card-v2-teams">${SPIRITUAL_GIFTS[g.index].teams}</p>
               </div>
             </div>
           `).join('')}
@@ -82,85 +131,83 @@ export function renderResults(container) {
     </div>
   `;
 
+  // Close button
   document.getElementById('results-back').addEventListener('click', () => navigate('/dashboard'));
 
-  // Draw quadrant chart
-  drawQuadrant(dTotal, iTotal, sTotal, cTotal);
+  // Quadrant tap handlers
+  document.querySelectorAll('.disc-box').forEach(box => {
+    box.addEventListener('click', () => {
+      const letter = box.dataset.letter;
+      showDiscModal(letter);
+    });
+  });
+
+  // Gift card expand/collapse
+  document.querySelectorAll('.gift-card-v2').forEach(card => {
+    card.querySelector('.gift-card-v2-header').addEventListener('click', () => {
+      card.classList.toggle('expanded');
+    });
+  });
+
+  // Animate fills after render
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.disc-box-fill').forEach(fill => {
+      const pct = fill.dataset.pct;
+      fill.style.height = pct + '%';
+    });
+  });
+}
+
+function buildQuadrantBox(letter, score, topTwo) {
+  const info = DISC_INFO[letter];
+  const isTop = topTwo.includes(letter);
+  const pct = Math.round((score / 25) * 100);
+  return `
+    <div class="disc-box ${isTop ? 'disc-box-top' : 'disc-box-bottom'}" data-letter="${letter}">
+      <div class="disc-box-fill" data-pct="${pct}" style="background:${info.color};height:0%"></div>
+      <div class="disc-box-content">
+        <span class="disc-box-letter">${letter}</span>
+        <span class="disc-box-score">${score}</span>
+      </div>
+    </div>
+  `;
+}
+
+function showDiscModal(letter) {
+  const info = DISC_INFO[letter];
+  const existing = document.getElementById('disc-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'disc-modal';
+  modal.className = 'disc-modal-overlay';
+  modal.innerHTML = `
+    <div class="disc-modal-card">
+      <button class="disc-modal-close">&times;</button>
+      <div class="disc-modal-letter" style="color:${info.color}">${letter}</div>
+      <div class="disc-modal-label">${info.label}</div>
+      <p class="disc-modal-desc">${info.description}</p>
+      <div class="disc-modal-advice">
+        ${info.advice.map(a => `
+          <div class="disc-modal-advice-item">
+            <span class="disc-modal-bullet" style="background:${info.color}"></span>
+            <span>${a}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal || e.target.classList.contains('disc-modal-close')) {
+      modal.remove();
+    }
+  });
 }
 
 function sum(data, letter) {
   let total = 0;
   for (let j = 1; j <= 5; j++) total += Number(data[`${letter}${j}`]) || 0;
   return total;
-}
-
-function drawQuadrant(d, i, s, c) {
-  const canvas = document.getElementById('disc-chart');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  const cx = w / 2, cy = h / 2;
-
-  // Background
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, w, h);
-
-  // Quadrant colors (matching native app: orange, green, brown, tan)
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = '#FF9800'; ctx.fillRect(0, 0, cx, cy);       // D - top-left
-  ctx.fillStyle = '#4CAF50'; ctx.fillRect(cx, 0, cx, cy);      // I - top-right
-  ctx.fillStyle = '#A67C52'; ctx.fillRect(0, cy, cx, h - cy);  // S - bottom-left
-  ctx.fillStyle = '#D4B896'; ctx.fillRect(cx, cy, cx, h - cy); // C - bottom-right
-  ctx.globalAlpha = 1;
-
-  // Grid lines
-  ctx.strokeStyle = '#ccc';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
-
-  // Labels
-  ctx.fillStyle = '#333';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('D', 30, 25);
-  ctx.fillText('I', w - 30, 25);
-  ctx.fillText('S', 30, h - 12);
-  ctx.fillText('C', w - 30, h - 12);
-
-  // Axis labels
-  ctx.font = '10px sans-serif';
-  ctx.fillStyle = '#888';
-  ctx.fillText('Task', cx, 12);
-  ctx.fillText('People', cx, h - 4);
-  ctx.save();
-  ctx.translate(10, cy); ctx.rotate(-Math.PI / 2);
-  ctx.fillText('Extroverted', 0, 0); ctx.restore();
-  ctx.save();
-  ctx.translate(w - 4, cy); ctx.rotate(Math.PI / 2);
-  ctx.fillText('Introverted', 0, 0); ctx.restore();
-
-  // Plot point
-  const maxScore = 25;
-  const taskPeople = ((i + s) - (d + c)) / (maxScore * 2);
-  const extroIntro = ((d + i) - (s + c)) / (maxScore * 2);
-  const px = cx + taskPeople * (w * 0.4);
-  const py = cy - extroIntro * (h * 0.4);
-
-  // Dot
-  ctx.beginPath();
-  ctx.arc(px, py, 10, 0, Math.PI * 2);
-  ctx.fillStyle = '#2E7D32';
-  ctx.fill();
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Letter in dot
-  const sorted = [['D', d], ['I', i], ['S', s], ['C', c]].sort((a, b) => b[1] - a[1]);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(sorted[0][0], px, py);
 }
