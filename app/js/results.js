@@ -128,6 +128,9 @@ export function renderResults(container) {
           `).join('')}
         </div>
       </div>
+
+      <div class="results-divider"></div>
+      <button class="results-pdf-btn" id="results-pdf">📄 Download PDF Results</button>
     </div>
   `;
 
@@ -147,6 +150,21 @@ export function renderResults(container) {
     card.querySelector('.gift-card-v2-header').addEventListener('click', () => {
       card.classList.toggle('expanded');
     });
+  });
+
+  // PDF download
+  document.getElementById('results-pdf').addEventListener('click', async () => {
+    const btn = document.getElementById('results-pdf');
+    btn.disabled = true;
+    btn.textContent = 'Generating PDF...';
+    try {
+      await generatePDF();
+    } catch(e) {
+      console.error('PDF generation error:', e);
+      alert('Error generating PDF. Please try again.');
+    }
+    btn.disabled = false;
+    btn.textContent = '📄 Download PDF Results';
   });
 
   // Animate fills after render
@@ -210,4 +228,300 @@ function sum(data, letter) {
   let total = 0;
   for (let j = 1; j <= 5; j++) total += Number(data[`${letter}${j}`]) || 0;
   return total;
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function generatePDF() {
+  if (!window.jspdf) {
+    alert('PDF library not loaded. Please check your internet connection and reload.');
+    return;
+  }
+
+  const data = userData;
+  if (!data) return;
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  const W = 792, H = 612;
+
+  // Cream background
+  pdf.setFillColor(245, 241, 232);
+  pdf.rect(0, 0, W, H, 'F');
+
+  // Logo
+  try {
+    const logoData = await loadImage('/DiscoverMoreLogo.png');
+    pdf.addImage(logoData, 'PNG', W / 2 - 110, 15, 220, 48);
+  } catch (e) {
+    pdf.setFontSize(22);
+    pdf.setTextColor(76, 175, 80);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Discover More', W / 2, 45, { align: 'center' });
+  }
+
+  // Title
+  pdf.setFontSize(16);
+  pdf.setTextColor(76, 175, 80);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Survey Results', W / 2, 78, { align: 'center' });
+
+  // Name and date
+  const name = data.NAME || '';
+  const dateStr = data.updated || '';
+  pdf.setFontSize(10);
+  pdf.setTextColor(100, 100, 100);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`${name}     ${dateStr}`, W / 2, 94, { align: 'center' });
+
+  // Orange divider
+  pdf.setFillColor(255, 152, 0);
+  pdf.rect(40, 102, W - 80, 2.5, 'F');
+
+  // === DISC Section (left) ===
+  const dTotal = sum(data, 'D');
+  const iTotal = sum(data, 'I');
+  const sTotal = sum(data, 'S');
+  const cTotal = sum(data, 'C');
+
+  const discSorted = [
+    { letter: 'D', score: dTotal },
+    { letter: 'I', score: iTotal },
+    { letter: 'S', score: sTotal },
+    { letter: 'C', score: cTotal }
+  ].sort((a, b) => b.score - a.score);
+
+  const topTwo = [discSorted[0].letter, discSorted[1].letter];
+
+  const DISC_COLORS = {
+    D: [76, 175, 80],
+    I: [255, 152, 0],
+    S: [166, 124, 82],
+    C: [212, 184, 150]
+  };
+
+  pdf.setFontSize(13);
+  pdf.setTextColor(27, 75, 90);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('DISC Personality', 180, 128, { align: 'center' });
+
+  // 2x2 grid
+  const boxSz = 72;
+  const boxGap = 5;
+  const gridStartX = 180 - boxSz - boxGap / 2;
+  const gridStartY = 142;
+
+  const boxLayout = [
+    { letter: 'D', score: dTotal, x: gridStartX, y: gridStartY },
+    { letter: 'I', score: iTotal, x: gridStartX + boxSz + boxGap, y: gridStartY },
+    { letter: 'C', score: cTotal, x: gridStartX, y: gridStartY + boxSz + boxGap },
+    { letter: 'S', score: sTotal, x: gridStartX + boxSz + boxGap, y: gridStartY + boxSz + boxGap }
+  ];
+
+  boxLayout.forEach(box => {
+    const col = DISC_COLORS[box.letter];
+    const isTop = topTwo.includes(box.letter);
+    const fillPct = Math.round((box.score / 25) * 100);
+    const fillH = (fillPct / 100) * boxSz;
+
+    // Gray background
+    pdf.setFillColor(220, 220, 220);
+    pdf.roundedRect(box.x, box.y, boxSz, boxSz, 6, 6, 'F');
+
+    // Color fill from bottom
+    if (fillH > 0) {
+      pdf.setFillColor(col[0], col[1], col[2]);
+      const fillY = box.y + boxSz - fillH;
+      pdf.rect(box.x + 1, fillY, boxSz - 2, fillH - 1, 'F');
+    }
+
+    // Border
+    if (isTop) {
+      pdf.setDrawColor(27, 75, 90);
+      pdf.setLineWidth(2.5);
+    } else {
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.5);
+    }
+    pdf.roundedRect(box.x, box.y, boxSz, boxSz, 6, 6, 'S');
+
+    // Letter
+    pdf.setFontSize(26);
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(box.letter, box.x + boxSz / 2, box.y + boxSz / 2 + 4, { align: 'center' });
+
+    // Score
+    pdf.setFontSize(10);
+    pdf.setTextColor(50, 50, 50);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(String(box.score), box.x + boxSz / 2, box.y + boxSz / 2 + 18, { align: 'center' });
+  });
+
+  // Type label (colored letters)
+  const typeY = gridStartY + 2 * boxSz + boxGap + 25;
+  pdf.setFontSize(18);
+  pdf.setFont('helvetica', 'bold');
+  const topLetter = discSorted[0].letter;
+  const secLetter = discSorted[1].letter;
+  const tc1 = DISC_COLORS[topLetter];
+  const tc2 = DISC_COLORS[secLetter];
+  const letterW = pdf.getTextWidth(topLetter);
+  const slashW = pdf.getTextWidth(' / ');
+  const secW = pdf.getTextWidth(secLetter);
+  const totalTypeW = letterW + slashW + secW;
+  const typeStartX = 180 - totalTypeW / 2;
+
+  pdf.setTextColor(tc1[0], tc1[1], tc1[2]);
+  pdf.text(topLetter, typeStartX, typeY);
+  pdf.setTextColor(50, 50, 50);
+  pdf.text(' / ', typeStartX + letterW, typeY);
+  pdf.setTextColor(tc2[0], tc2[1], tc2[2]);
+  pdf.text(secLetter, typeStartX + letterW + slashW, typeY);
+
+  // Description
+  pdf.setFontSize(8.5);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(60, 60, 60);
+  const discDesc = DISC_INFO[topLetter].description;
+  const descLines = pdf.splitTextToSize(discDesc, 280);
+  pdf.text(descLines.slice(0, 4), 40, typeY + 20);
+
+  // Advice bullets
+  const advice = DISC_INFO[topLetter].advice;
+  let advY = typeY + 20 + Math.min(descLines.length, 4) * 12 + 10;
+  pdf.setFontSize(8);
+  advice.forEach(a => {
+    pdf.setFillColor(tc1[0], tc1[1], tc1[2]);
+    pdf.circle(48, advY - 3, 2.5, 'F');
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(60, 60, 60);
+    pdf.text(a, 56, advY);
+    advY += 13;
+  });
+
+  // === Top 3 Spiritual Gifts (right side) ===
+  const gifts = [];
+  for (let g = 0; g < 24; g++) {
+    const zz1 = Number(data[`ZZ${g + 1}`]) || 0;
+    const zz2 = Number(data[`ZZ${g + 25}`]) || 0;
+    const zz3 = Number(data[`ZZ${g + 49}`]) || 0;
+    gifts.push({ index: g, name: SPIRITUAL_GIFTS[g].name, score: Math.min(zz1 + zz2 + zz3, 9) });
+  }
+  gifts.sort((a, b) => b.score - a.score);
+  const top3 = gifts.slice(0, 3);
+
+  const rightX = 370;
+  const cardW = 382;
+
+  pdf.setFontSize(13);
+  pdf.setTextColor(27, 75, 90);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Top 3 Spiritual Gifts', rightX + cardW / 2, 128, { align: 'center' });
+
+  let cardY = 142;
+  top3.forEach((gift) => {
+    const info = SPIRITUAL_GIFTS[gift.index];
+    const cardH = 88;
+
+    // Card background
+    pdf.setFillColor(255, 255, 255);
+    pdf.roundedRect(rightX, cardY, cardW, cardH, 6, 6, 'F');
+    pdf.setDrawColor(255, 152, 0);
+    pdf.setLineWidth(1.5);
+    pdf.roundedRect(rightX, cardY, cardW, cardH, 6, 6, 'S');
+
+    // Name
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(255, 152, 0);
+    pdf.text(info.name, rightX + 10, cardY + 16);
+
+    // Score
+    pdf.setFontSize(10);
+    pdf.setTextColor(76, 175, 80);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Score: ' + gift.score, rightX + cardW - 10, cardY + 16, { align: 'right' });
+
+    // Description (max 3 lines)
+    pdf.setFontSize(7.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(60, 60, 60);
+    const dLines = pdf.splitTextToSize(info.description, cardW - 20);
+    pdf.text(dLines.slice(0, 3), rightX + 10, cardY + 30);
+
+    // Verse
+    const verseY = cardY + 30 + Math.min(dLines.length, 3) * 10 + 4;
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'italic');
+    pdf.setTextColor(120, 120, 120);
+    const vLines = pdf.splitTextToSize(info.verse, cardW - 20);
+    pdf.text(vLines.slice(0, 1), rightX + 10, verseY);
+
+    // Teams
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(76, 175, 80);
+    const tLines = pdf.splitTextToSize('Teams: ' + info.teams, cardW - 20);
+    pdf.text(tLines.slice(0, 2), rightX + 10, verseY + 12);
+
+    cardY += cardH + 8;
+  });
+
+  // === Bottom: Remaining Gifts ===
+  const bottomDividerY = Math.max(cardY + 10, 440);
+  pdf.setFillColor(255, 152, 0);
+  pdf.rect(40, bottomDividerY, W - 80, 2, 'F');
+
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(27, 75, 90);
+  pdf.text('Remaining Spiritual Gifts', 40, bottomDividerY + 18);
+
+  const remaining = gifts.slice(3);
+  const cols = 3;
+  const colW = (W - 80) / cols;
+  const remStartY = bottomDividerY + 34;
+
+  remaining.forEach((g, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = 40 + col * colW;
+    const y = remStartY + row * 14;
+
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(60, 60, 60);
+    const nameText = g.name;
+    pdf.text(nameText, x, y);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(76, 175, 80);
+    const nameW = pdf.getTextWidth(nameText);
+    pdf.text(' (' + g.score + ')', x + nameW, y);
+  });
+
+  // Footer
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'italic');
+  pdf.setTextColor(150, 150, 150);
+  pdf.text('Generated by Discover More - Anchor Church', W / 2, H - 15, { align: 'center' });
+
+  // Save
+  pdf.save('DiscoverMore-Results.pdf');
 }

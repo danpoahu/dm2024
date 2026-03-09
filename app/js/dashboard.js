@@ -89,7 +89,7 @@ function showTopGifts(data) {
         <div class="gift-card-header" onclick="this.parentElement.classList.toggle('expanded')">
           <span class="gift-name">${gift.name}</span>
           <span class="gift-score">Score: ${g.score}</span>
-          <span class="gift-chevron">&#9660;</span>
+          <span class="gift-chevron">&#9654;</span>
         </div>
         <div class="gift-card-body">
           <p>${gift.description}</p>

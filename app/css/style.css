@@ -224,11 +224,12 @@ body {
   text-align: center;
 }
 .gift-card {
-  background: rgba(255,255,255,0.95);
+  background: #fff;
+  border: 2px solid rgba(255,152,0,0.4);
   border-radius: 14px;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   width: 90%;
   max-width: 420px;
 }
@@ -241,8 +242,8 @@ body {
 }
 .gift-card-header .gift-name { flex: 1; font-weight: 700; font-size: 1.1rem; color: var(--orange); }
 .gift-card-header .gift-score { color: var(--green); font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
-.gift-chevron { font-size: 0.65rem; color: var(--orange); transition: transform 0.25s; margin-left: 0.25rem; }
-.gift-card.expanded .gift-chevron { transform: rotate(180deg); }
+.gift-chevron { font-size: 1.1rem; color: var(--orange); transition: transform 0.25s; margin-left: 0.25rem; }
+.gift-card.expanded .gift-chevron { transform: rotate(90deg); }
 .gift-card-body {
   padding: 0 1rem;
   max-height: 0;
@@ -779,6 +780,30 @@ body {
 .modal-buttons { display: flex; gap: 0.75rem; margin-top: 0.5rem; }
 .modal-buttons .btn { flex: 1; }
 .warning-text { color: #d32f2f; font-size: 0.9rem; }
+
+/* ===== PDF Button ===== */
+.results-pdf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 85%;
+  max-width: 320px;
+  margin: 0.75rem auto 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--orange);
+  border: none;
+  border-radius: 16px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255,152,0,0.3);
+  transition: transform 0.15s;
+}
+.results-pdf-btn:hover { transform: translateY(-1px); }
+.results-pdf-btn:active { transform: scale(0.97); }
+.results-pdf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== Responsive ===== */
 @media (max-width: 380px) {
