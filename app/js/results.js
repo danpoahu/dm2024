@@ -37,19 +37,19 @@ export function renderResults(container) {
         <h3>DISC Personality Profile</h3>
         <div class="disc-bars">
           <div class="disc-bar-row">
-            <span class="disc-label" style="color:#e53935">D</span>
+            <span class="disc-label" style="color:#FF9800">D</span>
             <div class="disc-bar-track"><div class="disc-bar-fill disc-d" style="width:${(dTotal/25)*100}%">${dTotal}</div></div>
           </div>
           <div class="disc-bar-row">
-            <span class="disc-label" style="color:#fdd835">I</span>
+            <span class="disc-label" style="color:#4CAF50">I</span>
             <div class="disc-bar-track"><div class="disc-bar-fill disc-i" style="width:${(iTotal/25)*100}%">${iTotal}</div></div>
           </div>
           <div class="disc-bar-row">
-            <span class="disc-label" style="color:#43a047">S</span>
+            <span class="disc-label" style="color:#A67C52">S</span>
             <div class="disc-bar-track"><div class="disc-bar-fill disc-s" style="width:${(sTotal/25)*100}%">${sTotal}</div></div>
           </div>
           <div class="disc-bar-row">
-            <span class="disc-label" style="color:#1e88e5">C</span>
+            <span class="disc-label" style="color:#D4B896">C</span>
             <div class="disc-bar-track"><div class="disc-bar-fill disc-c" style="width:${(cTotal/25)*100}%">${cTotal}</div></div>
           </div>
         </div>
@@ -105,12 +105,12 @@ function drawQuadrant(d, i, s, c) {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, w, h);
 
-  // Quadrant colors
-  ctx.globalAlpha = 0.15;
-  ctx.fillStyle = '#e53935'; ctx.fillRect(0, 0, cx, cy);       // D - top-left
-  ctx.fillStyle = '#fdd835'; ctx.fillRect(cx, 0, cx, cy);      // I - top-right
-  ctx.fillStyle = '#43a047'; ctx.fillRect(0, cy, cx, h - cy);  // S - bottom-left
-  ctx.fillStyle = '#1e88e5'; ctx.fillRect(cx, cy, cx, h - cy); // C - bottom-right
+  // Quadrant colors (matching native app: orange, green, brown, tan)
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#FF9800'; ctx.fillRect(0, 0, cx, cy);       // D - top-left
+  ctx.fillStyle = '#4CAF50'; ctx.fillRect(cx, 0, cx, cy);      // I - top-right
+  ctx.fillStyle = '#A67C52'; ctx.fillRect(0, cy, cx, h - cy);  // S - bottom-left
+  ctx.fillStyle = '#D4B896'; ctx.fillRect(cx, cy, cx, h - cy); // C - bottom-right
   ctx.globalAlpha = 1;
 
   // Grid lines

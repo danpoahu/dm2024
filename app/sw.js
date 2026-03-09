@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dm-pwa-v1';
+const CACHE_NAME = 'dm-pwa-v2';
 const ASSETS = [
   '/app/',
   '/app/index.html',

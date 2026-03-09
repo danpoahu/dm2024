@@ -7,29 +7,16 @@ export async function renderDashboard(container) {
     <div class="screen dashboard-screen">
       <div class="dash-header">
         <img src="/DiscoverMoreLogo.png" alt="Discover More" class="dash-logo">
+        <div class="dash-divider"></div>
         <div id="welcome-text" class="welcome-text">Welcome</div>
+        <div class="dash-divider-sm"></div>
       </div>
       <div class="dash-buttons" id="dash-buttons">
-        <button class="dash-btn" id="btn-surveys">
-          <span class="dash-btn-icon">&#9998;</span>
-          Take Surveys
-        </button>
-        <button class="dash-btn" id="btn-results" disabled>
-          <span class="dash-btn-icon">&#9733;</span>
-          Survey Results
-        </button>
-        <button class="dash-btn" id="btn-profile">
-          <span class="dash-btn-icon">&#128100;</span>
-          Profile
-        </button>
-        <button class="dash-btn" id="btn-resources">
-          <span class="dash-btn-icon">&#128218;</span>
-          Resources
-        </button>
-        <button class="dash-btn dash-btn-logout" id="btn-logout">
-          <span class="dash-btn-icon">&#10140;</span>
-          Log Off
-        </button>
+        <button class="dash-btn" id="btn-surveys">Take Surveys</button>
+        <button class="dash-btn" id="btn-results" disabled>Survey Results</button>
+        <button class="dash-btn" id="btn-profile">Profile</button>
+        <button class="dash-btn" id="btn-resources">Resources</button>
+        <button class="dash-btn dash-btn-logout" id="btn-logout">Log Off</button>
       </div>
       <div id="top-gifts" class="top-gifts"></div>
     </div>
