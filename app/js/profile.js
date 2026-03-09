@@ -30,9 +30,9 @@ export function renderProfile(container) {
 
       <div class="form-card privacy-card">
         <h3>Privacy & Settings</h3>
-        <a href="https://info.discovermore.app/privacy.html" target="_blank" class="privacy-link">Privacy Policy</a>
-        <a href="https://info.discovermore.app/terms.html" target="_blank" class="privacy-link">Terms of Use</a>
-        <a href="mailto:info@discovermore.app" class="privacy-link">Contact Support</a>
+        <a href="https://danpoahu.github.io/DPConsulting/privacy.html" target="_blank" class="privacy-link">Privacy Policy</a>
+        <a href="/terms.html" target="_blank" class="privacy-link">Terms of Use</a>
+        <a href="https://danpoahu.github.io/DPConsulting/support.html" target="_blank" class="privacy-link">Contact Support</a>
       </div>
 
       <p class="profile-delete-link" id="delete-account-btn">Delete Account</p>
