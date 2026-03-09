@@ -2,7 +2,7 @@ const CACHE_NAME = 'dm-pwa-v2';
 const ASSETS = [
   '/app/',
   '/app/index.html',
-  '/app/css/style.css',
+  '/app/css/style.css?v=2',
   '/app/js/app.js',
   '/app/js/firebase-config.js',
   '/app/js/auth.js',
