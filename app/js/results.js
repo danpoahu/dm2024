@@ -109,11 +109,15 @@ export function renderResults(container) {
 
       <div class="results-divider"></div>
 
+      <button class="results-pdf-btn" id="results-pdf">📄 Download PDF Results</button>
+
+      <div class="results-divider"></div>
+
       <div class="results-section">
-        <h3 class="gifts-title">Your Spiritual Gifts</h3>
+        <h3 class="gifts-title">Your Top Spiritual Gifts</h3>
         <div class="gifts-list-v2">
-          ${gifts.map(g => `
-            <div class="gift-card-v2 ${g.score >= 8 ? 'gift-top' : ''}" data-gift="${g.index}">
+          ${gifts.filter(g => g.score >= 8).map(g => `
+            <div class="gift-card-v2 gift-top" data-gift="${g.index}">
               <div class="gift-card-v2-header">
                 <span class="gift-card-v2-name">${g.name}</span>
                 <span class="gift-card-v2-score">Score: ${g.score}</span>
@@ -128,9 +132,6 @@ export function renderResults(container) {
           `).join('')}
         </div>
       </div>
-
-      <div class="results-divider"></div>
-      <button class="results-pdf-btn" id="results-pdf">📄 Download PDF Results</button>
     </div>
   `;
 
