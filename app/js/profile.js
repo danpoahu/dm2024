@@ -9,10 +9,13 @@ export function renderProfile(container) {
 
   container.innerHTML = `
     <div class="screen profile-screen">
-      <div class="screen-header">
-        <button class="btn btn-link back-btn" id="profile-back">&larr; Dashboard</button>
-        <h2>Profile</h2>
+      <button class="results-close-btn" id="profile-back">&times;</button>
+      <div class="res-top">
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" class="res-logo">
+        <h2 class="results-title">Profile</h2>
+        <div class="results-divider"></div>
       </div>
+
       <div class="form-card">
         <label>Name</label>
         <input type="text" id="profile-name" value="${data.NAME || ''}" placeholder="First Last">
@@ -24,14 +27,16 @@ export function renderProfile(container) {
         <div id="profile-error" class="error-msg"></div>
         <button class="btn btn-primary" id="profile-save">Update Profile</button>
       </div>
+
       <div class="form-card privacy-card">
         <h3>Privacy & Settings</h3>
         <a href="https://info.discovermore.app/privacy.html" target="_blank" class="privacy-link">Privacy Policy</a>
         <a href="https://info.discovermore.app/terms.html" target="_blank" class="privacy-link">Terms of Use</a>
         <a href="mailto:info@discovermore.app" class="privacy-link">Contact Support</a>
-        <hr class="divider">
-        <button class="btn btn-danger" id="delete-account-btn">Delete Account</button>
       </div>
+
+      <p class="profile-delete-link" id="delete-account-btn">Delete Account</p>
+
       <div id="delete-modal" class="modal" style="display:none">
         <div class="modal-content">
           <h3>Delete Account</h3>

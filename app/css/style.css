@@ -618,6 +618,14 @@ a.dash-btn { text-decoration: none; }
   padding: 0.5rem 0;
   font-weight: 600;
 }
+.profile-delete-link {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 2rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
 
 /* ===== Resources Screen ===== */
 .res-screen { position: relative; padding-top: 0.5rem; }
