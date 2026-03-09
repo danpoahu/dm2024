@@ -10,32 +10,12 @@ export function renderResources(container) {
         <h2 class="res-title">Resources</h2>
       </div>
 
-      <div class="res-tiles">
-        <a href="https://discovermore.app/pdf/Discovery1.pdf" target="_blank" class="res-tile">
-          <span class="res-tile-icon">&#128196;</span>
-          <span class="res-tile-label">Discovery 1 PDF</span>
-          <span class="res-tile-arrow">&#8250;</span>
-        </a>
-        <a href="https://discovermore.app/pdf/Discovery2.pdf" target="_blank" class="res-tile">
-          <span class="res-tile-icon">&#128196;</span>
-          <span class="res-tile-label">Discovery 2 PDF</span>
-          <span class="res-tile-arrow">&#8250;</span>
-        </a>
-        <a href="https://discovermore.app/pdf/Discovery3.pdf" target="_blank" class="res-tile">
-          <span class="res-tile-icon">&#128196;</span>
-          <span class="res-tile-label">Discovery 3 PDF</span>
-          <span class="res-tile-arrow">&#8250;</span>
-        </a>
-        <div class="res-tile" id="ways-to-serve-btn">
-          <span class="res-tile-icon">&#128101;</span>
-          <span class="res-tile-label">Ways to Serve</span>
-          <span class="res-tile-arrow">&#8250;</span>
-        </div>
-        <a href="https://www.myanchor.church/" target="_blank" class="res-tile">
-          <span class="res-tile-icon">&#9962;</span>
-          <span class="res-tile-label">Anchor Church Website</span>
-          <span class="res-tile-arrow">&#8250;</span>
-        </a>
+      <div class="dash-buttons">
+        <a href="https://discovermore.app/pdf/Discovery1.pdf" target="_blank" class="dash-btn">Discovery 1 PDF</a>
+        <a href="https://discovermore.app/pdf/Discovery2.pdf" target="_blank" class="dash-btn">Discovery 2 PDF</a>
+        <a href="https://discovermore.app/pdf/Discovery3.pdf" target="_blank" class="dash-btn">Discovery 3 PDF</a>
+        <button class="dash-btn" id="ways-to-serve-btn">Ways to Serve</button>
+        <a href="https://www.myanchor.church/" target="_blank" class="dash-btn">Anchor Church Website</a>
       </div>
 
       <div class="res-divider"></div>

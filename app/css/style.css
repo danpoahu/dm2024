@@ -197,6 +197,7 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.15);
   transition: transform 0.15s, box-shadow 0.15s;
 }
+a.dash-btn { text-decoration: none; }
 .dash-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
 .dash-btn:active { transform: scale(0.97); }
 .dash-btn:disabled { opacity: 0.45; cursor: not-allowed; }
