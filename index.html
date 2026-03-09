@@ -84,6 +84,23 @@
             width: auto;
         }
 
+        .web-app-button {
+            display: inline-block;
+            background: #2E7D32;
+            color: #fff;
+            text-decoration: none;
+            padding: 14px 40px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .web-app-button:hover {
+            transform: translateY(-2px);
+            background: #256b29;
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 2rem 1.5rem;
@@ -184,6 +201,10 @@
                id="play-store-link"
                class="store-button">
                 <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play">
+            </a>
+
+            <a href="/app/" class="web-app-button">
+                Open Web App
             </a>
         </div>
     </div>
