@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lead by PushPay API Research - Discover More Integration</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #F5F1E8; color: #1A1A1A; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.7; }
+    h1 { color: #4CAF50; font-size: 1.6rem; margin-bottom: 0.25rem; }
+    h2 { color: #1B4B5A; font-size: 1.2rem; margin-top: 2rem; border-bottom: 2px solid rgba(255,152,0,0.3); padding-bottom: 0.4rem; }
+    h3 { color: #A67C52; font-size: 1rem; margin-top: 1.2rem; }
+    p, li { font-size: 0.95rem; margin: 0.4rem 0; }
+    ul { padding-left: 1.4rem; }
+    .subtitle { color: #666; font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .logo { display: block; margin: 0 auto 1rem; width: 50%; max-width: 200px; }
+    .divider { border: none; border-top: 2px solid #FF9800; margin: 1.5rem 0; opacity: 0.4; }
+    .card { background: #fff; border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .card h3 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th { background: #1B4B5A; color: #fff; text-align: left; padding: 0.6rem 0.8rem; }
+    td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #e0d8cc; }
+    tr:nth-child(even) td { background: rgba(212,184,150,0.15); }
+    .yes { color: #4CAF50; font-weight: 600; }
+    .no { color: #c0392b; font-weight: 600; }
+    .tag { display: inline-block; background: #4CAF50; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 8px; margin-right: 4px; }
+    .tag-orange { background: #FF9800; }
+    .tag-teal { background: #1B4B5A; }
+    code { background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .field-map { background: #1B4B5A; color: #fff; border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1rem 0; }
+    .field-map h3 { color: #FF9800; margin-top: 0; }
+    .field-map table { margin: 0.5rem 0; }
+    .field-map th { background: rgba(255,255,255,0.15); }
+    .field-map td { border-bottom: 1px solid rgba(255,255,255,0.15); color: #e0e0e0; }
+    .flow-step { display: flex; align-items: flex-start; gap: 0.8rem; margin: 0.8rem 0; }
+    .flow-num { background: #4CAF50; color: #fff; min-width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; margin-top: 2px; }
+    .flow-text { flex: 1; }
+    .footer { text-align: center; font-size: 0.8rem; color: #999; margin-top: 2.5rem; }
+  </style>
+</head>
+<body>
+
+  <h1>Lead by PushPay API Research</h1>
+  <p class="subtitle">Discover More &harr; CCB Integration Strategy &bull; March 2026</p>
+  <hr class="divider">
+
+  <!-- ==================== OVERVIEW ==================== -->
+  <h2>Overview</h2>
+  <p>Lead by PushPay (formerly Church Community Builder / CCB) has <strong>two separate APIs</strong>. The "Lead" mobile app does not have its own API &mdash; all CRM operations go through the legacy CCB API.</p>
+
+  <table>
+    <tr>
+      <th>API</th>
+      <th>Purpose</th>
+      <th>Format</th>
+      <th>Auth</th>
+      <th>Need It?</th>
+    </tr>
+    <tr>
+      <td><strong>CCB (ChMS) API</strong></td>
+      <td>People, notes, processes, custom fields</td>
+      <td>XML REST</td>
+      <td>HTTP Basic Auth</td>
+      <td><span class="yes">&#10003; YES</span></td>
+    </tr>
+    <tr>
+      <td><strong>Pushpay API</strong></td>
+      <td>Payments &amp; donations only</td>
+      <td>JSON REST</td>
+      <td>OAuth 2.0</td>
+      <td><span class="no">&#10007; NO</span></td>
+    </tr>
+  </table>
+
+  <p>The CCB API base URL follows this pattern:<br>
+  <code>https://[yourchurch].ccbchurch.com/api.php?srv=[service_name]</code></p>
+
+  <!-- ==================== CAPABILITIES ==================== -->
+  <h2>API Capabilities</h2>
+
+  <div class="card">
+    <h3><span class="yes">&#10003;</span> Search for People</h3>
+    <p>Service: <code>individual_search</code> &mdash; search by first name, last name, email, phone, address.</p>
+    <p>Also: <code>individual_profile_from_id</code> to look up a specific person by their CCB ID.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="yes">&#10003;</span> Create New People</h3>
+    <p>Service: <code>create_individual</code> &mdash; accepts first/last name, email, phone, address, campus, family, and more.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="yes">&#10003;</span> Update People Records &amp; Custom Fields</h3>
+    <p>Service: <code>update_individual</code> &mdash; update any profile field including custom text, date, and pulldown fields.</p>
+    <p>Service: <code>custom_field_labels</code> &mdash; read custom field label definitions.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="yes">&#10003;</span> Read Notes on a Person</h3>
+    <p>Service: <code>individual_notes</code> &mdash; retrieve notes about an individual, with date filtering and private note options.</p>
+    <p>Note: Creating standalone notes is poorly documented, but notes <strong>can</strong> be added when placing someone in a process queue.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="yes">&#10003;</span> Track Progress Through Processes (W1 / W2 / W3)</h3>
+    <p>Services: <code>process_list</code>, <code>queue_list</code>, <code>add_individual_to_queue</code>, <code>individual_queues</code>, <code>queue_individuals</code></p>
+    <p>Set up a "Discover More" process with queues for each week. Move people between queues via API as they complete steps. The DM app can read queue status back to show completion.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="no">&#10007;</span> Upload File Attachments</h3>
+    <p>No API endpoint exists for uploading PDFs or documents to a person's profile. File management is limited to the CCB web interface.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="no">&#10007;</span> Webhooks for CRM Changes</h3>
+    <p>No real-time notifications for people/process changes. You would need to poll the API. (Pushpay has webhooks but only for payment events.)</p>
+  </div>
+
+  <!-- ==================== INTEGRATION STRATEGY ==================== -->
+  <h2>Integration Strategy: Custom Fields</h2>
+  <p>Instead of uploading a PDF, we write the key results directly into CCB custom fields on the person's record. This makes the data instantly visible and searchable in Lead/CCB without staff needing to open a file.</p>
+
+  <div class="field-map">
+    <h3>Custom Field Mapping</h3>
+    <table>
+      <tr>
+        <th>CCB Field</th>
+        <th>Label</th>
+        <th>Example Value</th>
+        <th>Source in DM</th>
+      </tr>
+      <tr>
+        <td><code>udf_text_1</code></td>
+        <td>DISC Score</td>
+        <td>D/I</td>
+        <td><code>discH</code> + "/" + <code>discL</code></td>
+      </tr>
+      <tr>
+        <td><code>udf_text_2</code></td>
+        <td>Top 3 Spiritual Gifts</td>
+        <td>Leadership, Teaching, Mercy</td>
+        <td>Top 3 from scored gifts</td>
+      </tr>
+      <tr>
+        <td><code>udf_date_1</code></td>
+        <td>DM Survey Completed</td>
+        <td>2026-03-09</td>
+        <td>Timestamp when surveys are submitted</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ==================== SYNC FLOW ==================== -->
+  <h2>Sync Flow: DM App &rarr; CCB</h2>
+
+  <div class="flow-step">
+    <div class="flow-num">1</div>
+    <div class="flow-text"><strong>User completes surveys in Discover More.</strong><br>DISC score (e.g. D/I) and top 3 spiritual gifts are calculated and saved to Firebase.</div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">2</div>
+    <div class="flow-text"><strong>Search CCB for the person.</strong><br>API call: <code>individual_search</code> with email or name. Get their <code>individual_id</code>.</div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">3</div>
+    <div class="flow-text"><strong>Write custom fields to their CCB profile.</strong><br>API call: <code>update_individual</code> with <code>individual_id</code>, <code>udf_text_1</code> (DISC), <code>udf_text_2</code> (gifts), <code>udf_date_1</code> (date).</div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">4</div>
+    <div class="flow-text"><strong>Add to process queue (optional W1/W2/W3 tracking).</strong><br>API call: <code>add_individual_to_queue</code> to place them in the appropriate week's queue with a note.</div>
+  </div>
+
+  <!-- ==================== W1/W2/W3 TRACKING ==================== -->
+  <h2>W1 / W2 / W3 Progress Tracking</h2>
+  <p>CCB's <strong>Process Queue</strong> system is ideal for this. Here's the setup:</p>
+
+  <div class="card">
+    <h3>CCB Setup (one-time, in the CCB admin)</h3>
+    <ul>
+      <li>Create a <strong>Process</strong> called "Discover More"</li>
+      <li>Add <strong>Queues</strong>: "Week 1", "Week 2", "Week 3", "Completed"</li>
+      <li>Assign queue managers (staff who oversee each step)</li>
+    </ul>
+
+    <h3>Two-Way Sync</h3>
+    <ul>
+      <li><strong>DM &rarr; CCB:</strong> When a user completes W1 in the app, call <code>add_individual_to_queue</code> to move them into the W1 queue</li>
+      <li><strong>CCB &rarr; DM:</strong> Call <code>individual_queues</code> to check which queues a person is in, then reflect that status in the DM app (show checkmarks for completed weeks)</li>
+    </ul>
+  </div>
+
+  <!-- ==================== AUTH ==================== -->
+  <h2>Authentication &amp; Setup</h2>
+
+  <div class="card">
+    <h3>Getting API Credentials</h3>
+    <ol>
+      <li>Log into your CCB admin panel</li>
+      <li>Go to <strong>Settings &rarr; API</strong></li>
+      <li>Create a new <strong>API User</strong></li>
+      <li>Grant it access to the services you need: <code>individual_search</code>, <code>update_individual</code>, <code>add_individual_to_queue</code>, <code>individual_queues</code>, etc.</li>
+      <li>API calls use HTTP Basic Auth with that username/password</li>
+    </ol>
+
+    <h3>Exploring Available Endpoints</h3>
+    <p>Add <code>&amp;describe_api=1</code> to any API call to discover available parameters and response formats on your specific instance. This is the best way to find undocumented features.</p>
+  </div>
+
+  <!-- ==================== RATE LIMITS ==================== -->
+  <h2>Rate Limits</h2>
+  <table>
+    <tr><th>Limit</th><th>Value</th><th>Notes</th></tr>
+    <tr>
+      <td>Daily calls</td>
+      <td>10,000 / day</td>
+      <td>Check usage with <code>api_status</code> service</td>
+    </tr>
+    <tr>
+      <td>Per-minute</td>
+      <td>Throttled (exact cap not public)</td>
+      <td>Headers: <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code></td>
+    </tr>
+    <tr>
+      <td>When throttled</td>
+      <td>Wait per <code>Retry-After</code> header</td>
+      <td>Use exponential backoff</td>
+    </tr>
+  </table>
+
+  <!-- ==================== DOCUMENTATION ==================== -->
+  <h2>Documentation &amp; Resources</h2>
+  <table>
+    <tr><th>Resource</th><th>URL</th></tr>
+    <tr><td>CCB API Official Docs</td><td><code>https://[yourchurch].ccbchurch.com</code> &rarr; Settings &rarr; API</td></tr>
+    <tr><td>CCB API Docs (S3)</td><td><code>designccb.s3.amazonaws.com/helpdesk/files/official_docs/api.html</code></td></tr>
+    <tr><td>CCB API Tutorials (community)</td><td><code>ccbtutorials.com/tutorials/ccb-api-tutorials/</code></td></tr>
+    <tr><td>Pushpay Developer Portal</td><td><code>pushpay.io/docs/api</code></td></tr>
+    <tr><td>Pushpay Support (ChMS API)</td><td><code>support.pushpay.com/s/article/Getting-Started-API</code></td></tr>
+    <tr><td>CCB API Helper (PHP, GitHub)</td><td><code>github.com/deboorn/ccb-api</code></td></tr>
+  </table>
+
+  <!-- ==================== NEXT STEPS ==================== -->
+  <h2>Next Steps</h2>
+  <ol>
+    <li><strong>Get API credentials</strong> &mdash; Create an API user in CCB admin (Settings &rarr; API)</li>
+    <li><strong>Rename custom fields in CCB</strong> &mdash; Label <code>udf_text_1</code> as "DISC Score", <code>udf_text_2</code> as "Top 3 Spiritual Gifts", <code>udf_date_1</code> as "DM Survey Completed"</li>
+    <li><strong>Set up the "Discover More" process</strong> &mdash; Create the process with W1/W2/W3/Completed queues</li>
+    <li><strong>Test API calls</strong> &mdash; Use <code>describe_api=1</code> to verify field names and available services on your instance</li>
+    <li><strong>Build the integration</strong> &mdash; Add sync logic to the DM app (either client-side via a Cloud Function proxy, or a lightweight server)</li>
+  </ol>
+
+  <hr class="divider">
+  <p class="footer">Discover More &bull; Anchor Church, Hawaii &bull; Research prepared March 2026</p>
+
+</body>
+</html>
