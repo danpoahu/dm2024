@@ -4,6 +4,7 @@ import { DISC_QUESTIONS } from './data.js';
 
 export function renderPersonality(container) {
   const responses = new Array(20).fill(0);
+  let currentQ = 0;
 
   container.innerHTML = `
     <div class="screen survey-screen">
@@ -13,28 +14,64 @@ export function renderPersonality(container) {
         <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="progress-text" id="progress-text">0 of 20</div>
       </div>
-      <div class="survey-questions" id="survey-questions"></div>
+      <div class="carousel-container" id="carousel-container"></div>
+      <div class="carousel-nav">
+        <button class="carousel-nav-btn" id="carousel-prev">&#9664;</button>
+        <span class="carousel-counter" id="carousel-counter">1 / 20</span>
+        <button class="carousel-nav-btn" id="carousel-next">&#9654;</button>
+      </div>
       <button class="btn btn-primary survey-submit" id="disc-next" disabled>Continue to Spiritual Gifts</button>
     </div>
   `;
 
-  const questionsEl = document.getElementById('survey-questions');
+  const carouselEl = document.getElementById('carousel-container');
 
+  // Build all cards (hidden by default)
   DISC_QUESTIONS.forEach((q, idx) => {
-    const qEl = document.createElement('div');
-    qEl.className = 'question-card';
-    qEl.innerHTML = `
-      <div class="question-num">${idx + 1}</div>
-      <div class="question-text">${q}</div>
-      <div class="answer-buttons" data-q="${idx}">
-        ${[1,2,3,4,5].map(v => `<button class="answer-btn answer-${v}" data-val="${v}">${v}</button>`).join('')}
+    const card = document.createElement('div');
+    card.className = 'carousel-card' + (idx === 0 ? ' active' : '');
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="question-card carousel-question">
+        <div class="question-num">${idx + 1}</div>
+        <div class="question-text">${q}</div>
+        <div class="answer-buttons" data-q="${idx}">
+          ${[1,2,3,4,5].map(v => `<button class="answer-btn answer-${v}" data-val="${v}">${v}</button>`).join('')}
+        </div>
       </div>
     `;
-    questionsEl.appendChild(qEl);
+    carouselEl.appendChild(card);
   });
 
+  const prevBtn = document.getElementById('carousel-prev');
+  const nextBtn = document.getElementById('carousel-next');
+  const counterEl = document.getElementById('carousel-counter');
+
+  function showCard(idx) {
+    currentQ = Math.max(0, Math.min(idx, 19));
+    carouselEl.querySelectorAll('.carousel-card').forEach(c => c.classList.remove('active'));
+    carouselEl.querySelector(`[data-idx="${currentQ}"]`).classList.add('active');
+    counterEl.textContent = `${currentQ + 1} / 20`;
+    prevBtn.disabled = currentQ === 0;
+    nextBtn.disabled = currentQ === 19;
+  }
+
+  prevBtn.addEventListener('click', () => showCard(currentQ - 1));
+  nextBtn.addEventListener('click', () => showCard(currentQ + 1));
+
+  // Swipe support
+  let touchStartX = 0;
+  carouselEl.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  carouselEl.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0 && currentQ < 19) showCard(currentQ + 1);
+      else if (diff < 0 && currentQ > 0) showCard(currentQ - 1);
+    }
+  }, { passive: true });
+
   // Handle answer selection
-  questionsEl.addEventListener('click', (e) => {
+  carouselEl.addEventListener('click', (e) => {
     const btn = e.target.closest('.answer-btn');
     if (!btn) return;
     const group = btn.parentElement;
@@ -46,6 +83,11 @@ export function renderPersonality(container) {
     responses[qIdx] = val;
 
     updateProgress(responses);
+
+    // Auto-advance after short delay
+    setTimeout(() => {
+      if (currentQ < 19) showCard(currentQ + 1);
+    }, 350);
   });
 
   document.getElementById('disc-next').addEventListener('click', async () => {
@@ -53,7 +95,6 @@ export function renderPersonality(container) {
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    // Calculate DISC scores: pattern is D,I,S,C repeating in groups of 4
     const d = [], i = [], s = [], c = [];
     for (let g = 0; g < 5; g++) {
       d.push(responses[g * 4 + 0]);
@@ -70,7 +111,6 @@ export function renderPersonality(container) {
       updates[`C${j + 1}`] = c[j];
     }
 
-    // Calculate high/low DISC
     const totals = { D: d.reduce((a, b) => a + b, 0), I: i.reduce((a, b) => a + b, 0), S: s.reduce((a, b) => a + b, 0), C: c.reduce((a, b) => a + b, 0) };
     const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
     updates.discH = sorted[0][0];
@@ -104,6 +144,9 @@ export function renderPersonality(container) {
       if (cv > 0) { responses[g*4+3] = cv; selectAnswer(g*4+3, cv); }
     }
     updateProgress(responses);
+    // Jump to first unanswered
+    const firstUnanswered = responses.findIndex(v => v === 0);
+    if (firstUnanswered >= 0) showCard(firstUnanswered);
   }
 }
 
