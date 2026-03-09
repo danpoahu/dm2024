@@ -1,8 +1,8 @@
-const CACHE_NAME = 'dm-pwa-v8';
+const CACHE_NAME = 'dm-pwa-v9';
 const ASSETS = [
   '/app/',
   '/app/index.html',
-  '/app/css/style.css?v=8',
+  '/app/css/style.css?v=9',
   '/app/js/app.js',
   '/app/js/firebase-config.js',
   '/app/js/auth.js',

@@ -82,21 +82,22 @@ function showTopGifts(data) {
   const top3 = scores.slice(0, 3);
 
   const giftsEl = document.getElementById('top-gifts');
-  giftsEl.innerHTML = `<h3>Top 3 Spiritual Gifts</h3>` + top3.map(g => {
+  giftsEl.innerHTML = `<h3>Top 3 Spiritual Gifts</h3>
+    <div class="gifts-list-v2">` + top3.map(g => {
     const gift = SPIRITUAL_GIFTS[g.index];
     return `
-      <div class="gift-card">
-        <div class="gift-card-header" onclick="this.parentElement.classList.toggle('expanded')">
-          <span class="gift-name">${gift.name}</span>
-          <span class="gift-score">Score: ${g.score}</span>
-          <span class="gift-chevron">&#9654;</span>
+      <div class="gift-card-v2 gift-top">
+        <div class="gift-card-v2-header" onclick="this.parentElement.classList.toggle('expanded')">
+          <span class="gift-card-v2-name">${gift.name}</span>
+          <span class="gift-card-v2-score">Score: ${g.score}</span>
+          <span class="gift-card-v2-chevron">&#9660;</span>
         </div>
-        <div class="gift-card-body">
-          <p>${gift.description}</p>
-          <p class="gift-verse">${gift.verse}</p>
-          <p class="gift-teams"><strong>Teams:</strong> ${gift.teams}</p>
+        <div class="gift-card-v2-body">
+          <p class="gift-card-v2-desc">${gift.description}</p>
+          <p class="gift-card-v2-verse">${gift.verse}</p>
+          <p class="gift-card-v2-teams">${gift.teams}</p>
         </div>
       </div>
     `;
-  }).join('');
+  }).join('') + `</div>`;
 }
