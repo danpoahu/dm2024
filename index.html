@@ -130,8 +130,8 @@
     <script>
       // Links
       const APP_STORE_URL = "https://apps.apple.com/us/app/anchor-discover-more/id6748889981";
-      const PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=app.anchor.discovermore.android";
-      const PLAY_STORE_MARKET_URL = "market://details?id=app.anchor.discovermore.android";
+      // const PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=app.anchor.discovermore.android";
+      // const PLAY_STORE_MARKET_URL = "market://details?id=app.anchor.discovermore.android";
 
       function detectPlatform() {
         const ua = navigator.userAgent || "";
@@ -153,34 +153,34 @@
           return;
         }
 
-        if (isAndroid) {
-          window.location.href = PLAY_STORE_MARKET_URL;
-          setTimeout(() => {
-            window.location.replace(PLAY_STORE_WEB_URL);
-          }, 700);
-          return;
-        }
+        // if (isAndroid) {
+        //   window.location.href = PLAY_STORE_MARKET_URL;
+        //   setTimeout(() => {
+        //     window.location.replace(PLAY_STORE_WEB_URL);
+        //   }, 700);
+        //   return;
+        // }
         // Unknown / desktop → stay on page
       }
 
-      function openPlayStore(e) {
-        const { isAndroid } = detectPlatform();
-        if (!isAndroid) return;
-
-        e.preventDefault();
-        window.location.href = PLAY_STORE_MARKET_URL;
-        setTimeout(() => {
-          window.open(PLAY_STORE_WEB_URL, "_blank");
-        }, 700);
-      }
+      // function openPlayStore(e) {
+      //   const { isAndroid } = detectPlatform();
+      //   if (!isAndroid) return;
+      //
+      //   e.preventDefault();
+      //   window.location.href = PLAY_STORE_MARKET_URL;
+      //   setTimeout(() => {
+      //     window.open(PLAY_STORE_WEB_URL, "_blank");
+      //   }, 700);
+      // }
 
       document.addEventListener("DOMContentLoaded", function () {
         autoForwardToStore();
 
-        const playStoreLink = document.getElementById("play-store-link");
-        if (playStoreLink) {
-          playStoreLink.addEventListener("click", openPlayStore);
-        }
+        // const playStoreLink = document.getElementById("play-store-link");
+        // if (playStoreLink) {
+        //   playStoreLink.addEventListener("click", openPlayStore);
+        // }
       });
     </script>
 </head>
@@ -197,11 +197,13 @@
                 <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83&amp;releaseDate=1280448000" alt="Download on the App Store">
             </a>
 
+            <!-- Google Play link — commented out until Android launch
             <a href="https://play.google.com/store/apps/details?id=app.anchor.discovermore.android"
                id="play-store-link"
                class="store-button">
                 <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play">
             </a>
+            -->
 
             <a href="/app/" class="web-app-button">
                 Open Web App
