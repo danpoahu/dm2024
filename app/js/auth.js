@@ -14,9 +14,8 @@ export function renderLogin(container) {
           <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
           <div id="login-error" class="error-msg"></div>
           <button id="login-btn" class="btn btn-primary">Login</button>
-          <button id="forgot-btn" class="btn btn-link">Forgot Password?</button>
-          <hr class="divider">
           <button id="show-signup-btn" class="btn btn-secondary">Create New Account</button>
+          <button id="forgot-btn" class="btn btn-link">Forgot Password?</button>
         </div>
         <div id="signup-form" style="display:none">
           <h2>Create Account</h2>
