@@ -1,0 +1,221 @@
+/* ── Discover More Help Chat Widget ── */
+
+.dm-chat-fab {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2E7D32;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(46,125,50,0.4);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.dm-chat-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 22px rgba(46,125,50,0.5);
+}
+.dm-chat-fab svg {
+  width: 26px;
+  height: 26px;
+  fill: #fff;
+}
+.dm-chat-fab .dm-chat-close {
+  display: none;
+}
+.dm-chat-fab.open .dm-chat-icon { display: none; }
+.dm-chat-fab.open .dm-chat-close { display: block; }
+
+/* ── Chat Panel ── */
+.dm-chat-panel {
+  position: fixed;
+  bottom: 90px;
+  right: 22px;
+  width: 340px;
+  max-height: 480px;
+  background: #F5F1E8;
+  border: 3px solid rgba(255,152,0,0.55);
+  border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  z-index: 10000;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dm-chat-panel.open {
+  display: flex;
+}
+
+/* ── Header ── */
+.dm-chat-header {
+  background: #2E7D32;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dm-chat-header-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dm-chat-header-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: #fff;
+}
+.dm-chat-header-text h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.dm-chat-header-text p {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+/* ── Messages Area ── */
+.dm-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  min-height: 200px;
+}
+
+.dm-chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.dm-chat-msg.bot {
+  align-self: flex-start;
+  background: #fff;
+  border: 1.5px solid rgba(255,152,0,0.3);
+  color: #1A1A1A;
+  border-bottom-left-radius: 4px;
+}
+.dm-chat-msg.user {
+  align-self: flex-end;
+  background: #4CAF50;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Typing indicator */
+.dm-chat-typing {
+  align-self: flex-start;
+  padding: 10px 18px;
+  background: #fff;
+  border: 1.5px solid rgba(255,152,0,0.3);
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  display: none;
+}
+.dm-chat-typing.visible {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.dm-chat-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aaa;
+  animation: dmTypingBounce 1.2s infinite;
+}
+.dm-chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+.dm-chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dmTypingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── Input Area ── */
+.dm-chat-input-area {
+  display: flex;
+  padding: 10px 12px;
+  gap: 8px;
+  border-top: 2px solid rgba(255,152,0,0.25);
+  background: #F5F1E8;
+}
+.dm-chat-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid rgba(255,152,0,0.4);
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: #1A1A1A;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.dm-chat-input:focus {
+  border-color: #FF9800;
+}
+.dm-chat-input::placeholder {
+  color: #999;
+}
+.dm-chat-send {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #4CAF50;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+  flex-shrink: 0;
+}
+.dm-chat-send:hover {
+  background: #43a047;
+}
+.dm-chat-send:active {
+  transform: scale(0.95);
+}
+.dm-chat-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dm-chat-send svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+}
+
+/* ── Mobile responsive ── */
+@media (max-width: 420px) {
+  .dm-chat-panel {
+    right: 10px;
+    left: 10px;
+    bottom: 85px;
+    width: auto;
+    max-height: 70vh;
+  }
+  .dm-chat-fab {
+    bottom: 16px;
+    right: 16px;
+  }
+}
