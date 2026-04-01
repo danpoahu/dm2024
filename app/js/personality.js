@@ -20,7 +20,7 @@ export function renderPersonality(container) {
         <span class="carousel-counter" id="carousel-counter">1 / 20</span>
         <button class="carousel-nav-btn" id="carousel-next">&#9654;</button>
       </div>
-      <button class="btn btn-primary survey-submit" id="disc-next" disabled>Continue to Spiritual Gifts</button>
+      <div id="disc-saving" class="survey-submit" style="display:none;text-align:center;font-weight:700;color:var(--green);font-size:1.05rem;">Saving...</div>
     </div>
   `;
 
@@ -84,16 +84,20 @@ export function renderPersonality(container) {
 
     updateProgress(responses);
 
-    // Auto-advance after short delay
-    setTimeout(() => {
-      if (currentQ < 19) showCard(currentQ + 1);
-    }, 350);
+    const allAnswered = responses.every(v => v > 0);
+    if (allAnswered) {
+      // Auto-save and advance to spiritual gifts
+      setTimeout(() => autoSaveDISC(responses), 500);
+    } else {
+      // Auto-advance to next question
+      setTimeout(() => {
+        if (currentQ < 19) showCard(currentQ + 1);
+      }, 350);
+    }
   });
 
-  document.getElementById('disc-next').addEventListener('click', async () => {
-    const btn = document.getElementById('disc-next');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
+  async function autoSaveDISC(responses) {
+    document.getElementById('disc-saving').style.display = 'block';
 
     const d = [], i = [], s = [], c = [];
     for (let g = 0; g < 5; g++) {
@@ -126,10 +130,9 @@ export function renderPersonality(container) {
       navigate('/sgsurvey');
     } catch (e) {
       console.error('Error saving DISC:', e);
-      btn.disabled = false;
-      btn.textContent = 'Continue to Spiritual Gifts';
+      document.getElementById('disc-saving').style.display = 'none';
     }
-  });
+  }
 
   // Pre-fill if user already has data
   if (userData) {

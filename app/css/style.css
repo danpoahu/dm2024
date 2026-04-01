@@ -273,12 +273,12 @@ a.dash-btn { text-decoration: none; }
 .progress-text { font-size: 0.8rem; color: var(--text-light); margin-top: 0.25rem; }
 
 /* Carousel */
-.carousel-container { position: relative; overflow: hidden; min-height: 160px; }
+.carousel-container { position: relative; overflow: hidden; min-height: 240px; }
 .carousel-card { display: none; }
-.carousel-card.active { display: block; animation: cardFadeIn 0.25s ease; }
+.carousel-card.active { display: flex; align-items: center; justify-content: center; min-height: 240px; animation: cardFadeIn 0.2s ease; }
 @keyframes cardFadeIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .carousel-question {
   background: #fff;
@@ -291,6 +291,7 @@ a.dash-btn { text-decoration: none; }
   gap: 1rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
   text-align: center;
+  width: 100%;
 }
 .carousel-question .question-num {
   width: 2.4rem;

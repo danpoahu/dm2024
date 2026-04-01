@@ -20,7 +20,7 @@ export function renderSGSurvey(container) {
         <span class="carousel-counter" id="sg-counter">1 / 72</span>
         <button class="carousel-nav-btn" id="sg-next">&#9654;</button>
       </div>
-      <button class="btn btn-primary survey-submit" id="sg-submit" disabled>Submit & View Results</button>
+      <div id="sg-saving" class="survey-submit" style="display:none;text-align:center;font-weight:700;color:var(--green);font-size:1.05rem;">Saving...</div>
     </div>
   `;
 
@@ -83,16 +83,20 @@ export function renderSGSurvey(container) {
 
     updateSGProgress(responses);
 
-    // Auto-advance after short delay
-    setTimeout(() => {
-      if (currentQ < 71) showCard(currentQ + 1);
-    }, 350);
+    const allAnswered = responses.every(v => v > 0);
+    if (allAnswered) {
+      // Auto-save and go to results
+      setTimeout(() => autoSaveSG(responses), 500);
+    } else {
+      // Auto-advance to next question
+      setTimeout(() => {
+        if (currentQ < 71) showCard(currentQ + 1);
+      }, 350);
+    }
   });
 
-  document.getElementById('sg-submit').addEventListener('click', async () => {
-    const btn = document.getElementById('sg-submit');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
+  async function autoSaveSG(responses) {
+    document.getElementById('sg-saving').style.display = 'block';
 
     const updates = {};
     for (let j = 0; j < 72; j++) {
@@ -115,10 +119,9 @@ export function renderSGSurvey(container) {
       navigate('/results');
     } catch (e) {
       console.error('Error saving SG:', e);
-      btn.disabled = false;
-      btn.textContent = 'Submit & View Results';
+      document.getElementById('sg-saving').style.display = 'none';
     }
-  });
+  }
 
   // Pre-fill if user has existing data
   if (userData) {
