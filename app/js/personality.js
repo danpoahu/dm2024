@@ -4,6 +4,7 @@ import { DISC_QUESTIONS } from './data.js';
 
 export function renderPersonality(container) {
   const responses = new Array(20).fill(0);
+  const touched = new Array(20).fill(false);
   let currentQ = 0;
 
   container.innerHTML = `
@@ -82,18 +83,18 @@ export function renderPersonality(container) {
     btn.classList.add('selected');
     responses[qIdx] = val;
 
-    updateProgress(responses);
+    touched[qIdx] = true;
+    updateProgress(responses, touched);
 
-    const allAnswered = responses.every(v => v > 0);
-    if (allAnswered) {
-      // Auto-save and advance to spiritual gifts
-      setTimeout(() => autoSaveDISC(responses), 500);
-    } else {
-      // Auto-advance to next question
-      setTimeout(() => {
-        if (currentQ < 19) showCard(currentQ + 1);
-      }, 350);
-    }
+    // Always advance to next question
+    setTimeout(() => {
+      if (currentQ < 19) {
+        showCard(currentQ + 1);
+      } else if (touched.every(Boolean)) {
+        // Last question answered and all touched — auto-save
+        autoSaveDISC(responses);
+      }
+    }, 350);
   });
 
   async function autoSaveDISC(responses) {
@@ -134,21 +135,20 @@ export function renderPersonality(container) {
     }
   }
 
-  // Pre-fill if user already has data
-  if (userData) {
+  // Pre-fill only if user has actually completed this survey before (updated !== "1")
+  if (userData && userData.updated && userData.updated !== '1') {
     for (let g = 0; g < 5; g++) {
       const dv = Number(userData[`D${g+1}`]) || 0;
       const iv = Number(userData[`I${g+1}`]) || 0;
       const sv = Number(userData[`S${g+1}`]) || 0;
       const cv = Number(userData[`C${g+1}`]) || 0;
-      if (dv > 0) { responses[g*4+0] = dv; selectAnswer(g*4+0, dv); }
-      if (iv > 0) { responses[g*4+1] = iv; selectAnswer(g*4+1, iv); }
-      if (sv > 0) { responses[g*4+2] = sv; selectAnswer(g*4+2, sv); }
-      if (cv > 0) { responses[g*4+3] = cv; selectAnswer(g*4+3, cv); }
+      if (dv > 0) { responses[g*4+0] = dv; touched[g*4+0] = true; selectAnswer(g*4+0, dv); }
+      if (iv > 0) { responses[g*4+1] = iv; touched[g*4+1] = true; selectAnswer(g*4+1, iv); }
+      if (sv > 0) { responses[g*4+2] = sv; touched[g*4+2] = true; selectAnswer(g*4+2, sv); }
+      if (cv > 0) { responses[g*4+3] = cv; touched[g*4+3] = true; selectAnswer(g*4+3, cv); }
     }
-    updateProgress(responses);
-    // Jump to first unanswered
-    const firstUnanswered = responses.findIndex(v => v === 0);
+    updateProgress(responses, touched);
+    const firstUnanswered = touched.findIndex(v => !v);
     if (firstUnanswered >= 0) showCard(firstUnanswered);
   }
 }
@@ -160,9 +160,8 @@ function selectAnswer(qIdx, val) {
   if (btn) btn.classList.add('selected');
 }
 
-function updateProgress(responses) {
-  const answered = responses.filter(v => v > 0).length;
+function updateProgress(responses, touched) {
+  const answered = touched.filter(Boolean).length;
   document.getElementById('progress-fill').style.width = `${(answered / 20) * 100}%`;
   document.getElementById('progress-text').textContent = `${answered} of 20`;
-  document.getElementById('disc-next').disabled = answered < 20;
 }

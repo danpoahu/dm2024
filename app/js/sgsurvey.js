@@ -4,6 +4,7 @@ import { SG_QUESTIONS } from './data.js';
 
 export function renderSGSurvey(container) {
   const responses = new Array(72).fill(0);
+  const touched = new Array(72).fill(false);
   let currentQ = 0;
 
   container.innerHTML = `
@@ -81,18 +82,18 @@ export function renderSGSurvey(container) {
     btn.classList.add('selected');
     responses[qIdx] = val;
 
-    updateSGProgress(responses);
+    touched[qIdx] = true;
+    updateSGProgress(responses, touched);
 
-    const allAnswered = responses.every(v => v > 0);
-    if (allAnswered) {
-      // Auto-save and go to results
-      setTimeout(() => autoSaveSG(responses), 500);
-    } else {
-      // Auto-advance to next question
-      setTimeout(() => {
-        if (currentQ < 71) showCard(currentQ + 1);
-      }, 350);
-    }
+    // Always advance to next question
+    setTimeout(() => {
+      if (currentQ < 71) {
+        showCard(currentQ + 1);
+      } else if (touched.every(Boolean)) {
+        // Last question answered and all touched — auto-save
+        autoSaveSG(responses);
+      }
+    }, 350);
   });
 
   async function autoSaveSG(responses) {
@@ -123,18 +124,18 @@ export function renderSGSurvey(container) {
     }
   }
 
-  // Pre-fill if user has existing data
-  if (userData) {
+  // Pre-fill only if user has actually completed surveys before
+  if (userData && userData.updated && userData.updated !== '1') {
     for (let j = 0; j < 72; j++) {
       const v = Number(userData[`ZZ${j + 1}`]) || 0;
       if (v > 0) {
         responses[j] = v;
+        touched[j] = true;
         selectSGAnswer(j, v);
       }
     }
-    updateSGProgress(responses);
-    // Jump to first unanswered
-    const firstUnanswered = responses.findIndex(v => v === 0);
+    updateSGProgress(responses, touched);
+    const firstUnanswered = touched.findIndex(v => !v);
     if (firstUnanswered >= 0) showCard(firstUnanswered);
   }
 }
@@ -146,9 +147,8 @@ function selectSGAnswer(qIdx, val) {
   if (btn) btn.classList.add('selected');
 }
 
-function updateSGProgress(responses) {
-  const answered = responses.filter(v => v > 0).length;
+function updateSGProgress(responses, touched) {
+  const answered = touched.filter(Boolean).length;
   document.getElementById('sg-progress-fill').style.width = `${(answered / 72) * 100}%`;
   document.getElementById('sg-progress-text').textContent = `${answered} of 72`;
-  document.getElementById('sg-submit').disabled = answered < 72;
 }
