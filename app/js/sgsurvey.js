@@ -1,5 +1,5 @@
-import { auth, db, doc, getDoc, updateDoc, collection, query, where, getDocs } from './firebase-config.js';
-import { navigate, userData, setUserData } from './app.js';
+import { db, doc, updateDoc } from './firebase-config.js';
+import { navigate, userData, setUserData, currentSession } from './app.js';
 import { SG_QUESTIONS } from './data.js';
 
 export function renderSGSurvey(container) {
@@ -106,7 +106,7 @@ export function renderSGSurvey(container) {
     updates.updated = `${month}/${day}/${year}`;
 
     try {
-      const docRef = await getDocRef();
+      const docRef = doc(db, 'results', currentSession.docId);
       await updateDoc(docRef, updates);
       if (userData) {
         Object.assign(userData, updates);
@@ -148,14 +148,4 @@ function updateSGProgress(responses) {
   document.getElementById('sg-progress-fill').style.width = `${(answered / 72) * 100}%`;
   document.getElementById('sg-progress-text').textContent = `${answered} of 72`;
   document.getElementById('sg-submit').disabled = answered < 72;
-}
-
-async function getDocRef() {
-  const user = auth.currentUser;
-  const uidDoc = await getDoc(doc(db, "results", user.uid));
-  if (uidDoc.exists()) return doc(db, "results", user.uid);
-  const q = query(collection(db, "results"), where("EMAIL", "==", user.email));
-  const snap = await getDocs(q);
-  if (!snap.empty) return snap.docs[0].ref;
-  return doc(db, "results", user.uid);
 }

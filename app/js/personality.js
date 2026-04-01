@@ -1,5 +1,5 @@
-import { auth, db, doc, getDoc, updateDoc, collection, query, where, getDocs } from './firebase-config.js';
-import { navigate, userData, setUserData } from './app.js';
+import { db, doc, updateDoc } from './firebase-config.js';
+import { navigate, userData, setUserData, currentSession } from './app.js';
 import { DISC_QUESTIONS } from './data.js';
 
 export function renderPersonality(container) {
@@ -117,7 +117,7 @@ export function renderPersonality(container) {
     updates.discL = sorted.length > 1 ? sorted[1][0] : "";
 
     try {
-      const docRef = await getDocRef();
+      const docRef = doc(db, 'results', currentSession.docId);
       await updateDoc(docRef, updates);
       if (userData) {
         Object.assign(userData, updates);
@@ -162,14 +162,4 @@ function updateProgress(responses) {
   document.getElementById('progress-fill').style.width = `${(answered / 20) * 100}%`;
   document.getElementById('progress-text').textContent = `${answered} of 20`;
   document.getElementById('disc-next').disabled = answered < 20;
-}
-
-async function getDocRef() {
-  const user = auth.currentUser;
-  const uidDoc = await getDoc(doc(db, "results", user.uid));
-  if (uidDoc.exists()) return doc(db, "results", user.uid);
-  const q = query(collection(db, "results"), where("EMAIL", "==", user.email));
-  const snap = await getDocs(q);
-  if (!snap.empty) return snap.docs[0].ref;
-  return doc(db, "results", user.uid);
 }

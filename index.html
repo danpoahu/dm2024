@@ -153,14 +153,8 @@
           return;
         }
 
-        // if (isAndroid) {
-        //   window.location.href = PLAY_STORE_MARKET_URL;
-        //   setTimeout(() => {
-        //     window.location.replace(PLAY_STORE_WEB_URL);
-        //   }, 700);
-        //   return;
-        // }
-        // Unknown / desktop → stay on page
+        // Everyone else (desktop, Android) → go straight to web app
+        window.location.replace('/app/');
       }
 
       // function openPlayStore(e) {

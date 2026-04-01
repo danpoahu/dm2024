@@ -1,8 +1,5 @@
-import {
-  auth, db, doc, getDoc, updateDoc, collection, query, where, getDocs,
-  reauthenticateWithCredential, EmailAuthProvider, deleteUser
-} from './firebase-config.js';
-import { navigate, userData, setUserData } from './app.js';
+import { db, doc, updateDoc } from './firebase-config.js';
+import { navigate, userData, setUserData, currentSession } from './app.js';
 
 export function renderProfile(container) {
   const data = userData || {};
@@ -22,7 +19,7 @@ export function renderProfile(container) {
         <label>Phone</label>
         <input type="tel" id="profile-phone" value="${data.Phone1 || ''}" placeholder="Phone number">
         <label>Email</label>
-        <input type="email" id="profile-email" value="${data.EMAIL || auth.currentUser?.email || ''}" disabled>
+        <input type="email" id="profile-email" value="${data.EMAIL || (currentSession ? currentSession.email : '')}" disabled>
         <div id="profile-msg" class="success-msg"></div>
         <div id="profile-error" class="error-msg"></div>
         <button class="btn btn-primary" id="profile-save">Update Profile</button>
@@ -33,21 +30,6 @@ export function renderProfile(container) {
         <a href="https://danpoahu.github.io/DPConsulting/privacy.html" target="_blank" class="privacy-link">Privacy Policy</a>
         <a href="/terms.html" target="_blank" class="privacy-link">Terms of Use</a>
         <a href="https://danpoahu.github.io/DPConsulting/support.html" target="_blank" class="privacy-link">Contact Support</a>
-      </div>
-
-      <p class="profile-delete-link" id="delete-account-btn">Delete Account</p>
-
-      <div id="delete-modal" class="modal" style="display:none">
-        <div class="modal-content">
-          <h3>Delete Account</h3>
-          <p class="warning-text">This action is permanent and cannot be undone. All your data will be deleted.</p>
-          <input type="password" id="delete-password" placeholder="Enter your password to confirm">
-          <div id="delete-error" class="error-msg"></div>
-          <div class="modal-buttons">
-            <button class="btn btn-secondary" id="delete-cancel">Cancel</button>
-            <button class="btn btn-danger" id="delete-confirm">Delete Forever</button>
-          </div>
-        </div>
       </div>
     </div>
   `;
@@ -65,7 +47,7 @@ export function renderProfile(container) {
     if (!name || !name.includes(' ')) { errEl.textContent = 'Please enter first and last name.'; return; }
 
     try {
-      const docRef = await getDocRef();
+      const docRef = doc(db, 'results', currentSession.docId);
       await updateDoc(docRef, { NAME: name, Phone1: phone });
       if (userData) { userData.NAME = name; userData.Phone1 = phone; setUserData(userData); }
       msgEl.textContent = 'Profile updated!';
@@ -74,38 +56,4 @@ export function renderProfile(container) {
       errEl.textContent = 'Error updating profile.';
     }
   });
-
-  // Delete account
-  document.getElementById('delete-account-btn').addEventListener('click', () => {
-    document.getElementById('delete-modal').style.display = 'flex';
-  });
-  document.getElementById('delete-cancel').addEventListener('click', () => {
-    document.getElementById('delete-modal').style.display = 'none';
-  });
-  document.getElementById('delete-confirm').addEventListener('click', async () => {
-    const password = document.getElementById('delete-password').value;
-    const errEl = document.getElementById('delete-error');
-    errEl.textContent = '';
-
-    if (!password) { errEl.textContent = 'Please enter your password.'; return; }
-
-    try {
-      const user = auth.currentUser;
-      const credential = EmailAuthProvider.credential(user.email, password);
-      await reauthenticateWithCredential(user, credential);
-      await deleteUser(user);
-    } catch (e) {
-      errEl.textContent = 'Incorrect password or error deleting account.';
-    }
-  });
-}
-
-async function getDocRef() {
-  const user = auth.currentUser;
-  const uidDoc = await getDoc(doc(db, "results", user.uid));
-  if (uidDoc.exists()) return doc(db, "results", user.uid);
-  const q = query(collection(db, "results"), where("EMAIL", "==", user.email));
-  const snap = await getDocs(q);
-  if (!snap.empty) return snap.docs[0].ref;
-  return doc(db, "results", user.uid);
 }

@@ -1,5 +1,5 @@
-import { auth, db, doc, getDoc, signOut, collection, query, where, getDocs } from './firebase-config.js';
-import { navigate, setUserData, userData } from './app.js';
+import { db, doc, getDoc } from './firebase-config.js';
+import { navigate, setUserData, userData, currentSession } from './app.js';
 import { SPIRITUAL_GIFTS } from './data.js';
 
 export async function renderDashboard(container) {
@@ -16,7 +16,6 @@ export async function renderDashboard(container) {
         <button class="dash-btn" id="btn-results" disabled>Survey Results</button>
         <button class="dash-btn" id="btn-profile">Profile</button>
         <button class="dash-btn" id="btn-resources">Resources</button>
-        <button class="dash-btn dash-btn-logout" id="btn-logout">Log Off</button>
       </div>
       <div id="top-gifts" class="top-gifts"></div>
     </div>
@@ -24,28 +23,22 @@ export async function renderDashboard(container) {
 
   // Load user data
   try {
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!currentSession) return;
 
-    // Try fetching by UID first, then by email query
-    let data = null;
-    const uidDoc = await getDoc(doc(db, "results", user.uid));
-    if (uidDoc.exists()) {
-      data = uidDoc.data();
-    } else {
-      const q = query(collection(db, "results"), where("EMAIL", "==", user.email));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        data = snap.docs[0].data();
+    let data = userData;
+    if (!data) {
+      const userDoc = await getDoc(doc(db, 'results', currentSession.docId));
+      if (userDoc.exists()) {
+        data = userDoc.data();
+        setUserData(data);
       }
     }
 
     if (data) {
-      setUserData(data);
-      const name = data.NAME || user.email;
-      document.getElementById('welcome-text').textContent = `Welcome ${name.split(' ')[0]}`;
+      const name = data.NAME || currentSession.email;
+      document.getElementById('welcome-text').textContent = 'Welcome ' + name.split(' ')[0];
 
-      const surveyDone = data.updated && data.updated !== "1";
+      const surveyDone = data.updated && data.updated !== '1';
       const resultsBtn = document.getElementById('btn-results');
       const surveysBtn = document.getElementById('btn-surveys');
 
@@ -65,17 +58,14 @@ export async function renderDashboard(container) {
   document.getElementById('btn-results').addEventListener('click', () => navigate('/results'));
   document.getElementById('btn-profile').addEventListener('click', () => navigate('/profile'));
   document.getElementById('btn-resources').addEventListener('click', () => navigate('/resources'));
-  document.getElementById('btn-logout').addEventListener('click', async () => {
-    await signOut(auth);
-  });
 }
 
 function showTopGifts(data) {
   const scores = [];
   for (let i = 0; i < 24; i++) {
-    const zz1 = Number(data[`ZZ${i + 1}`]) || 0;
-    const zz2 = Number(data[`ZZ${i + 25}`]) || 0;
-    const zz3 = Number(data[`ZZ${i + 49}`]) || 0;
+    const zz1 = Number(data['ZZ' + (i + 1)]) || 0;
+    const zz2 = Number(data['ZZ' + (i + 25)]) || 0;
+    const zz3 = Number(data['ZZ' + (i + 49)]) || 0;
     scores.push({ index: i, score: Math.min(zz1 + zz2 + zz3, 9) });
   }
   scores.sort((a, b) => b.score - a.score);
