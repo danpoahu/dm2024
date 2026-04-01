@@ -86,13 +86,12 @@ export function renderPersonality(container) {
     touched[qIdx] = true;
     updateProgress(responses, touched);
 
-    // Always advance to next question
+    // Advance to next, or auto-save if all done
     setTimeout(() => {
-      if (currentQ < 19) {
-        showCard(currentQ + 1);
-      } else if (touched.every(Boolean)) {
-        // Last question answered and all touched — auto-save
+      if (touched.every(Boolean)) {
         autoSaveDISC(responses);
+      } else if (currentQ < 19) {
+        showCard(currentQ + 1);
       }
     }, 350);
   });

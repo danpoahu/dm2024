@@ -310,6 +310,10 @@ a.dash-btn { text-decoration: none; }
   line-height: 1.5;
   font-weight: 600;
   color: var(--text-dark);
+  min-height: 3.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .carousel-question .answer-buttons {
   display: flex;

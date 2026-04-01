@@ -85,13 +85,12 @@ export function renderSGSurvey(container) {
     touched[qIdx] = true;
     updateSGProgress(responses, touched);
 
-    // Always advance to next question
+    // Advance to next, or auto-save if all done
     setTimeout(() => {
-      if (currentQ < 71) {
-        showCard(currentQ + 1);
-      } else if (touched.every(Boolean)) {
-        // Last question answered and all touched — auto-save
+      if (touched.every(Boolean)) {
         autoSaveSG(responses);
+      } else if (currentQ < 71) {
+        showCard(currentQ + 1);
       }
     }, 350);
   });
