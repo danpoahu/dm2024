@@ -47,7 +47,7 @@ showWelcomePopup();
 
 function showWelcomePopup() {
   appEl.innerHTML = `
-    <div class="screen login-screen">
+    <div class="screen login-screen" style="position:relative;">
       <img src="/DiscoverMoreLogo.png" alt="Discover More" class="login-logo">
       <div class="login-card">
         <h2>Welcome</h2>
@@ -58,6 +58,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v21</span>
     </div>
   `;
 
