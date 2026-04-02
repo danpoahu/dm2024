@@ -1,18 +1,19 @@
-const CACHE_NAME = 'dm-pwa-v12';
+const CACHE_NAME = 'dm-pwa-v25';
 const ASSETS = [
   '/app/',
   '/app/index.html',
-  '/app/css/style.css?v=12',
-  '/app/js/app.js',
-  '/app/js/firebase-config.js',
-  '/app/js/auth.js',
-  '/app/js/dashboard.js',
-  '/app/js/personality.js',
-  '/app/js/sgsurvey.js',
-  '/app/js/results.js',
-  '/app/js/profile.js',
-  '/app/js/resources.js',
-  '/app/js/data.js',
+  '/app/css/style.css?v=25',
+  '/app/css/chat.css?v=2',
+  '/app/js/app.js?v=25',
+  '/app/js/firebase-config.js?v=25',
+  '/app/js/chat.js?v=2',
+  '/app/js/dashboard.js?v=25',
+  '/app/js/personality.js?v=25',
+  '/app/js/sgsurvey.js?v=25',
+  '/app/js/results.js?v=25',
+  '/app/js/profile.js?v=25',
+  '/app/js/resources.js?v=25',
+  '/app/js/data.js?v=25',
   '/app/js/jspdf.min.js',
   '/DiscoverMoreLogo.png',
   '/Icon_Android.jpg'
@@ -33,10 +34,15 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Network-first for Firebase API calls, cache-first for app shell
-  if (e.request.url.includes('firebasejs') || e.request.url.includes('googleapis') || e.request.url.includes('firebaseio')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-  } else {
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
-  }
+  // Network-first for everything — fall back to cache only if offline
+  e.respondWith(
+    fetch(e.request).then(response => {
+      // Update cache with fresh response
+      if (response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(e.request))
+  );
 });
