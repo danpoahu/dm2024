@@ -564,6 +564,7 @@ a.dash-btn { text-decoration: none; }
   align-items: center;
   padding: 0.85rem 1rem;
   gap: 0.5rem;
+  cursor: pointer;
 }
 .gift-card-v2-name { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--orange); }
 .gift-card-v2-score { font-size: 0.9rem; font-weight: 600; color: var(--green); white-space: nowrap; }

@@ -1,6 +1,6 @@
-import { db, doc, getDoc } from './firebase-config.js?v=26';
-import { navigate, setUserData, userData, currentSession } from './app.js?v=26';
-import { SPIRITUAL_GIFTS } from './data.js?v=26';
+import { db, doc, getDoc } from './firebase-config.js?v=27';
+import { navigate, setUserData, userData, currentSession } from './app.js?v=27';
+import { SPIRITUAL_GIFTS } from './data.js?v=27';
 
 export async function renderDashboard(container) {
   container.innerHTML = `
