@@ -157,7 +157,4 @@ function showWelcomePopup() {
   });
 }
 
-// Register service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/app/sw.js').catch(() => {});
-}
+// Service worker removed — was causing aggressive caching issues
