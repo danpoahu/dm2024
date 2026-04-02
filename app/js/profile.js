@@ -1,5 +1,5 @@
-import { db, doc, updateDoc } from './firebase-config.js';
-import { navigate, userData, setUserData, currentSession } from './app.js';
+import { db, doc, updateDoc } from './firebase-config.js?v=26';
+import { navigate, userData, setUserData, currentSession } from './app.js?v=26';
 
 export function renderProfile(container) {
   const data = userData || {};

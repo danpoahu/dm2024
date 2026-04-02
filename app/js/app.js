@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js';
-import { renderDashboard } from './dashboard.js';
-import { renderPersonality } from './personality.js';
-import { renderSGSurvey } from './sgsurvey.js';
-import { renderResults } from './results.js';
-import { renderProfile } from './profile.js';
-import { renderResources } from './resources.js';
+import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=26';
+import { renderDashboard } from './dashboard.js?v=26';
+import { renderPersonality } from './personality.js?v=26';
+import { renderSGSurvey } from './sgsurvey.js?v=26';
+import { renderResults } from './results.js?v=26';
+import { renderProfile } from './profile.js?v=26';
+import { renderResources } from './resources.js?v=26';
 
 const appEl = document.getElementById('app');
 
