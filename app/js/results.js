@@ -57,13 +57,18 @@ export function renderResults(container) {
   const sTotal = sum(data, 'S');
   const cTotal = sum(data, 'C');
 
-  // Sort scores to find top 2
+  // Sort scores — break ties randomly
   const sorted = [
-    { letter: 'D', score: dTotal },
-    { letter: 'I', score: iTotal },
-    { letter: 'S', score: sTotal },
-    { letter: 'C', score: cTotal }
-  ].sort((a, b) => b.score - a.score);
+    { letter: 'D', score: dTotal, r: Math.random() },
+    { letter: 'I', score: iTotal, r: Math.random() },
+    { letter: 'S', score: sTotal, r: Math.random() },
+    { letter: 'C', score: cTotal, r: Math.random() }
+  ].sort((a, b) => b.score - a.score || b.r - a.r);
+
+  // Assign colors by rank: 1st=green, 2nd=orange, 3rd/4th=brown
+  const RANK_COLORS = ['#4CAF50', '#FF9800', '#A67C52', '#A67C52'];
+  const rankColorMap = {};
+  sorted.forEach((s, i) => { rankColorMap[s.letter] = RANK_COLORS[i]; });
 
   const topTwo = [sorted[0].letter, sorted[1].letter];
 
@@ -93,16 +98,16 @@ export function renderResults(container) {
           <div class="disc-axis-label disc-axis-left">Task</div>
           <div class="disc-axis-label disc-axis-right">People</div>
           <div class="disc-grid">
-            ${buildQuadrantBox('D', dTotal, topTwo)}
-            ${buildQuadrantBox('I', iTotal, topTwo)}
-            ${buildQuadrantBox('C', cTotal, topTwo)}
-            ${buildQuadrantBox('S', sTotal, topTwo)}
+            ${buildQuadrantBox('D', dTotal, topTwo, rankColorMap)}
+            ${buildQuadrantBox('I', iTotal, topTwo, rankColorMap)}
+            ${buildQuadrantBox('C', cTotal, topTwo, rankColorMap)}
+            ${buildQuadrantBox('S', sTotal, topTwo, rankColorMap)}
           </div>
         </div>
         <div class="disc-type-label">
-          <span class="disc-type-high" style="color:${DISC_INFO[sorted[0].letter].color}">${sorted[0].letter}</span>
+          <span class="disc-type-high" style="color:${rankColorMap[sorted[0].letter]}">${sorted[0].letter}</span>
           <span class="disc-type-slash">/</span>
-          <span class="disc-type-low" style="color:${DISC_INFO[sorted[1].letter].color}">${sorted[1].letter}</span>
+          <span class="disc-type-low" style="color:${rankColorMap[sorted[1].letter]}">${sorted[1].letter}</span>
         </div>
         <p class="disc-hint">Tap any quadrant for more info</p>
       </div>
@@ -142,7 +147,7 @@ export function renderResults(container) {
   document.querySelectorAll('.disc-box').forEach(box => {
     box.addEventListener('click', () => {
       const letter = box.dataset.letter;
-      showDiscModal(letter);
+      showDiscModal(letter, rankColorMap);
     });
   });
 
@@ -177,13 +182,13 @@ export function renderResults(container) {
   });
 }
 
-function buildQuadrantBox(letter, score, topTwo) {
-  const info = DISC_INFO[letter];
+function buildQuadrantBox(letter, score, topTwo, rankColorMap) {
   const isTop = topTwo.includes(letter);
+  const color = rankColorMap[letter];
   const pct = Math.round((score / 25) * 100);
   return `
     <div class="disc-box ${isTop ? 'disc-box-top' : 'disc-box-bottom'}" data-letter="${letter}">
-      <div class="disc-box-fill" data-pct="${pct}" style="background:${info.color};height:0%"></div>
+      <div class="disc-box-fill" data-pct="${pct}" style="background:${color};height:0%"></div>
       <div class="disc-box-content">
         <span class="disc-box-letter">${letter}</span>
         <span class="disc-box-score">${score}</span>
@@ -192,8 +197,9 @@ function buildQuadrantBox(letter, score, topTwo) {
   `;
 }
 
-function showDiscModal(letter) {
+function showDiscModal(letter, rankColorMap) {
   const info = DISC_INFO[letter];
+  const color = rankColorMap[letter];
   const existing = document.getElementById('disc-modal');
   if (existing) existing.remove();
 
@@ -203,13 +209,13 @@ function showDiscModal(letter) {
   modal.innerHTML = `
     <div class="disc-modal-card">
       <button class="disc-modal-close">&times;</button>
-      <div class="disc-modal-letter" style="color:${info.color}">${letter}</div>
+      <div class="disc-modal-letter" style="color:${color}">${letter}</div>
       <div class="disc-modal-label">${info.label}</div>
       <p class="disc-modal-desc">${info.description}</p>
       <div class="disc-modal-advice">
         ${info.advice.map(a => `
           <div class="disc-modal-advice-item">
-            <span class="disc-modal-bullet" style="background:${info.color}"></span>
+            <span class="disc-modal-bullet" style="background:${color}"></span>
             <span>${a}</span>
           </div>
         `).join('')}
@@ -309,12 +315,10 @@ async function generatePDF() {
 
   const topTwo = [discSorted[0].letter, discSorted[1].letter];
 
-  const DISC_COLORS = {
-    D: [76, 175, 80],
-    I: [255, 152, 0],
-    S: [166, 124, 82],
-    C: [212, 184, 150]
-  };
+  // Rank-based colors for PDF: 1st=green, 2nd=orange, 3rd/4th=brown
+  const PDF_RANK_COLORS = [[76, 175, 80], [255, 152, 0], [166, 124, 82], [166, 124, 82]];
+  const DISC_COLORS = {};
+  discSorted.forEach((s, i) => { DISC_COLORS[s.letter] = PDF_RANK_COLORS[i]; });
 
   pdf.setFontSize(13);
   pdf.setTextColor(27, 75, 90);
