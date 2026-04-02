@@ -128,53 +128,9 @@
     </style>
 
     <script>
-      // Links
-      const APP_STORE_URL = "https://apps.apple.com/us/app/anchor-discover-more/id6748889981";
-      // const PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=app.anchor.discovermore.android";
-      // const PLAY_STORE_MARKET_URL = "market://details?id=app.anchor.discovermore.android";
-
-      function detectPlatform() {
-        const ua = navigator.userAgent || "";
-        const uaLower = ua.toLowerCase();
-
-        const isAndroid = /android/.test(uaLower);
-        const isIOS =
-          /iphone|ipad|ipod/.test(uaLower) ||
-          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-        return { isAndroid, isIOS };
-      }
-
-      function autoForwardToStore() {
-        const { isAndroid, isIOS } = detectPlatform();
-
-        if (isIOS) {
-          window.location.replace(APP_STORE_URL);
-          return;
-        }
-
-        // Everyone else (desktop, Android) → go straight to web app
-        window.location.replace('/app/');
-      }
-
-      // function openPlayStore(e) {
-      //   const { isAndroid } = detectPlatform();
-      //   if (!isAndroid) return;
-      //
-      //   e.preventDefault();
-      //   window.location.href = PLAY_STORE_MARKET_URL;
-      //   setTimeout(() => {
-      //     window.open(PLAY_STORE_WEB_URL, "_blank");
-      //   }, 700);
-      // }
-
+      // Skip splash — go straight to the web app (Name/Email form)
       document.addEventListener("DOMContentLoaded", function () {
-        autoForwardToStore();
-
-        // const playStoreLink = document.getElementById("play-store-link");
-        // if (playStoreLink) {
-        //   playStoreLink.addEventListener("click", openPlayStore);
-        // }
+        window.location.replace('/app/');
       });
     </script>
 </head>
