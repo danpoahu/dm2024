@@ -86,12 +86,17 @@ export function renderPersonality(container) {
     touched[qIdx] = true;
     updateProgress(responses, touched);
 
-    // Advance to next, or auto-save if all done
+    // Advance to next, or auto-save on last card
     setTimeout(() => {
-      if (touched.every(Boolean)) {
-        autoSaveDISC(responses);
-      } else if (currentQ < 19) {
+      if (currentQ < 19) {
         showCard(currentQ + 1);
+      } else {
+        // On last card — fill skipped questions with 1 and save
+        for (let k = 0; k < 20; k++) {
+          if (!touched[k]) { responses[k] = 1; touched[k] = true; }
+        }
+        updateProgress(responses, touched);
+        autoSaveDISC(responses);
       }
     }, 350);
   });

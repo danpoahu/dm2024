@@ -85,12 +85,17 @@ export function renderSGSurvey(container) {
     touched[qIdx] = true;
     updateSGProgress(responses, touched);
 
-    // Advance to next, or auto-save if all done
+    // Advance to next, or auto-save on last card
     setTimeout(() => {
-      if (touched.every(Boolean)) {
-        autoSaveSG(responses);
-      } else if (currentQ < 71) {
+      if (currentQ < 71) {
         showCard(currentQ + 1);
+      } else {
+        // On last card — fill skipped questions with 1 and save
+        for (let k = 0; k < 72; k++) {
+          if (!touched[k]) { responses[k] = 1; touched[k] = true; }
+        }
+        updateSGProgress(responses, touched);
+        autoSaveSG(responses);
       }
     }, 350);
   });
