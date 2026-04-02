@@ -21,6 +21,12 @@ export async function renderDashboard(container) {
     </div>
   `;
 
+  // Navigation — always attach these first
+  document.getElementById('btn-surveys').addEventListener('click', () => navigate('/personality'));
+  document.getElementById('btn-results').addEventListener('click', () => navigate('/results'));
+  document.getElementById('btn-profile').addEventListener('click', () => navigate('/profile'));
+  document.getElementById('btn-resources').addEventListener('click', () => navigate('/resources'));
+
   // Load user data
   try {
     if (!currentSession) return;
@@ -52,12 +58,6 @@ export async function renderDashboard(container) {
   } catch (e) {
     console.error('Error loading user data:', e);
   }
-
-  // Navigation
-  document.getElementById('btn-surveys').addEventListener('click', () => navigate('/personality'));
-  document.getElementById('btn-results').addEventListener('click', () => navigate('/results'));
-  document.getElementById('btn-profile').addEventListener('click', () => navigate('/profile'));
-  document.getElementById('btn-resources').addEventListener('click', () => navigate('/resources'));
 }
 
 function showTopGifts(data) {
