@@ -58,7 +58,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v24</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v25</span>
     </div>
   `;
 
