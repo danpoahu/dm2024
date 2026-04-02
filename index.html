@@ -127,10 +127,14 @@
         }
     </style>
 
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script>
       // Skip splash — go straight to the web app (Name/Email form)
+      // Cache-bust the URL so Safari can't serve a stale app/index.html
       document.addEventListener("DOMContentLoaded", function () {
-        window.location.replace('/app/');
+        window.location.replace('/app/?cb=' + Date.now());
       });
     </script>
 </head>
