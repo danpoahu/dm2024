@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=27';
-import { navigate, userData, setUserData, currentSession } from './app.js?v=27';
-import { DISC_QUESTIONS } from './data.js?v=27';
+import { db, doc, updateDoc } from './firebase-config.js?v=28';
+import { navigate, userData, setUserData, currentSession, setPendingDISC } from './app.js?v=28';
+import { DISC_QUESTIONS } from './data.js?v=28';
 
 export function renderPersonality(container) {
   const responses = new Array(20).fill(0);
@@ -102,7 +102,10 @@ export function renderPersonality(container) {
   });
 
   async function autoSaveDISC(responses) {
-    document.getElementById('disc-saving').style.display = 'block';
+    const savingEl = document.getElementById('disc-saving');
+    savingEl.style.display = 'block';
+    savingEl.innerHTML = 'Saving...';
+    savingEl.style.color = 'var(--green)';
 
     const d = [], i = [], s = [], c = [];
     for (let g = 0; g < 5; g++) {
@@ -125,18 +128,36 @@ export function renderPersonality(container) {
     updates.discH = sorted[0][0];
     updates.discL = sorted.length > 1 ? sorted[1][0] : "";
 
-    try {
-      const docRef = doc(db, 'results', currentSession.docId);
-      await updateDoc(docRef, updates);
-      if (userData) {
-        Object.assign(userData, updates);
-        setUserData(userData);
+    // Try up to 2 attempts, then stash and move on
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const docRef = doc(db, 'results', currentSession.docId);
+        await updateDoc(docRef, updates);
+        if (userData) {
+          Object.assign(userData, updates);
+          setUserData(userData);
+        }
+        setPendingDISC(null);
+        navigate('/sgsurvey');
+        return;
+      } catch (e) {
+        console.error(`DISC save attempt ${attempt} failed:`, e);
+        if (attempt === 1) {
+          savingEl.innerHTML = 'Retrying...';
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
-      navigate('/sgsurvey');
-    } catch (e) {
-      console.error('Error saving DISC:', e);
-      document.getElementById('disc-saving').style.display = 'none';
     }
+
+    // Both attempts failed — stash DISC data and move on to SG survey
+    console.warn('DISC save failed after 2 attempts, carrying to SG save');
+    setPendingDISC(updates);
+    if (userData) {
+      Object.assign(userData, updates);
+      setUserData(userData);
+    }
+    savingEl.innerHTML = 'Continuing...';
+    setTimeout(() => navigate('/sgsurvey'), 500);
   }
 
   // Pre-fill only if user has actually completed this survey before (updated !== "1")

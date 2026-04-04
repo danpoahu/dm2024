@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=27';
-import { navigate, userData, setUserData, currentSession } from './app.js?v=27';
-import { SG_QUESTIONS } from './data.js?v=27';
+import { db, doc, updateDoc } from './firebase-config.js?v=28';
+import { navigate, userData, setUserData, currentSession, pendingDISC, setPendingDISC } from './app.js?v=28';
+import { SG_QUESTIONS } from './data.js?v=28';
 
 export function renderSGSurvey(container) {
   const responses = new Array(72).fill(0);
@@ -101,7 +101,10 @@ export function renderSGSurvey(container) {
   });
 
   async function autoSaveSG(responses) {
-    document.getElementById('sg-saving').style.display = 'block';
+    const savingEl = document.getElementById('sg-saving');
+    savingEl.style.display = 'block';
+    savingEl.innerHTML = 'Saving...';
+    savingEl.style.color = 'var(--green)';
 
     const updates = {};
     for (let j = 0; j < 72; j++) {
@@ -114,18 +117,37 @@ export function renderSGSurvey(container) {
     const year = now.getFullYear();
     updates.updated = `${month}/${day}/${year}`;
 
-    try {
-      const docRef = doc(db, 'results', currentSession.docId);
-      await updateDoc(docRef, updates);
-      if (userData) {
-        Object.assign(userData, updates);
-        setUserData(userData);
-      }
-      navigate('/results');
-    } catch (e) {
-      console.error('Error saving SG:', e);
-      document.getElementById('sg-saving').style.display = 'none';
+    // Merge any unsaved DISC data into this save
+    if (pendingDISC) {
+      Object.assign(updates, pendingDISC);
     }
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const docRef = doc(db, 'results', currentSession.docId);
+        await updateDoc(docRef, updates);
+        if (userData) {
+          Object.assign(userData, updates);
+          setUserData(userData);
+        }
+        setPendingDISC(null);
+        navigate('/results');
+        return;
+      } catch (e) {
+        console.error(`SG save attempt ${attempt} failed:`, e);
+        if (attempt === 1) {
+          savingEl.innerHTML = 'Retrying...';
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    }
+
+    // Both attempts failed — show error with retry button
+    savingEl.innerHTML = 'Unable to save. <button id="sg-retry" style="margin-left:8px;padding:6px 18px;border-radius:8px;border:none;background:var(--green);color:#fff;font-weight:700;cursor:pointer;">Retry</button>';
+    savingEl.style.color = '#c0392b';
+    document.getElementById('sg-retry').addEventListener('click', () => {
+      autoSaveSG(responses);
+    });
   }
 
   // Pre-fill only if user has actually completed surveys before
