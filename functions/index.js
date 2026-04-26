@@ -329,9 +329,10 @@ exports.dmSendResumeEmails = functions
     return null;
   });
 
-// Saturday 7 AM HST — sends to incomplete web users who signed up in the past 14 days.
-// "Past 7 days" = first Saturday after a Sunday-class signup; days 7-14 = final reminder.
-// Caps at 3 total emails per user.
+// Saturday 7 AM HST — Saturday after #1, then the Saturday after that.
+// Predicate: incomplete web user, count < 3, signed up ≥ 1 day ago,
+// and (no prior email OR last email ≥ 5 days ago). The 5-day dedupe
+// keeps the cadence at one email per Saturday. Cap at 3 total.
 exports.dmSendSaturdayResumeEmails = functions
   .region("us-central1")
   .runWith({
@@ -346,7 +347,7 @@ exports.dmSendSaturdayResumeEmails = functions
   .onRun(async () => {
     const db = admin.firestore();
     const now = Date.now();
-    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+    const fiveDaysAgo = now - 5 * 24 * 60 * 60 * 1000;
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
     const snapshot = await db.collection("results").where("updated", "==", "1").get();
 
@@ -355,11 +356,13 @@ exports.dmSendSaturdayResumeEmails = functions
       const data = docSnap.data();
       if (data.env !== "Web" || !data.EMAIL) return;
       const count = data.resumeEmailCount || 0;
-      if (count >= 3) return; // cap reached
+      if (count >= 3) return;
       const createdMs = data.created && data.created.toMillis ? data.created.toMillis() : 0;
-      if (!createdMs) return;
-      if (createdMs < fourteenDaysAgo) return; // signed up > 14 days ago, out of window
-      if (createdMs > oneDayAgo) return; // signed up < 1 day ago, give them time to complete in session
+      if (!createdMs || createdMs > oneDayAgo) return; // < 1 day old: give them time
+      if (data.resumeEmailSentAt) {
+        const lastMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
+        if (lastMs > fiveDaysAgo) return; // emailed within the last 5 days, skip
+      }
       eligible.push(docSnap.id);
     });
 
@@ -460,7 +463,7 @@ exports.dmEligibilityReport = functions
     const db = admin.firestore();
     const now = Date.now();
     const dayAgo = now - 24 * 60 * 60 * 1000;
-    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+    const fiveDaysAgo = now - 5 * 24 * 60 * 60 * 1000;
 
     const snapshot = await db.collection("results").get();
 
@@ -504,9 +507,13 @@ exports.dmEligibilityReport = functions
         dailyTomorrow.push(item);
       }
 
-      // Saturday cron predicate (next fires 2026-05-02): signed up in past 14 days, count < 3, signed up >= 1 day ago
-      if (createdMs > 0 && createdMs >= fourteenDaysAgo && createdMs <= dayAgo && count < 3) {
-        saturdayProjected.push(item);
+      // Saturday cron predicate (next fires 2026-05-02): incomplete web, signed up ≥ 1 day ago,
+      // count < 3, and (no prior email OR last email ≥ 5 days ago).
+      if (createdMs > 0 && createdMs <= dayAgo && count < 3) {
+        const lastMs = lastEmailMs;
+        if (!lastMs || lastMs <= fiveDaysAgo) {
+          saturdayProjected.push(item);
+        }
       }
 
       // Out of all signed-up incomplete web users, the rest are skipped:
@@ -585,7 +592,7 @@ exports.dmEligibilityReport = functions
 </table>
 
 <h2>Projected for next Saturday <span class="count">${saturdayProjected.length}</span></h2>
-<p style="color:#5a6478;font-size:0.92rem;">For context — fires Saturday 2026-05-02 at 7 AM HST. Web users incomplete, signed up 1-14 days ago, count &lt; 3.</p>
+<p style="color:#5a6478;font-size:0.92rem;">For context — fires Saturday 2026-05-02 at 7 AM HST. Incomplete web users, count &lt; 3, last email ≥ 5 days ago (or no prior email).</p>
 <table>
   <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
   <tbody>${tableBody(saturdayProjected)}</tbody>
