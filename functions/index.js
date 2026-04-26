@@ -329,8 +329,9 @@ exports.dmSendResumeEmails = functions
     return null;
   });
 
-// Saturday 7 AM HST — sends follow-up #2 and #3 to incomplete users.
-// Caps at 3 total emails per user (initial + 2 Saturdays).
+// Saturday 7 AM HST — sends to incomplete web users who signed up in the past 14 days.
+// "Past 7 days" = first Saturday after a Sunday-class signup; days 7-14 = final reminder.
+// Caps at 3 total emails per user.
 exports.dmSendSaturdayResumeEmails = functions
   .region("us-central1")
   .runWith({
@@ -344,18 +345,21 @@ exports.dmSendSaturdayResumeEmails = functions
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
     const db = admin.firestore();
-    const sixDaysAgo = Date.now() - 6 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
     const snapshot = await db.collection("results").where("updated", "==", "1").get();
 
     const eligible = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.env !== "Web" || !data.EMAIL) return;
-      if (!data.resumeEmailSentAt) return; // never got initial — skip until daily cron sends one
-      const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
-      if (lastSentMs > sixDaysAgo) return; // sent within last 6 days, don't double up
       const count = data.resumeEmailCount || 0;
       if (count >= 3) return; // cap reached
+      const createdMs = data.created && data.created.toMillis ? data.created.toMillis() : 0;
+      if (!createdMs) return;
+      if (createdMs < fourteenDaysAgo) return; // signed up > 14 days ago, out of window
+      if (createdMs > oneDayAgo) return; // signed up < 1 day ago, give them time to complete in session
       eligible.push(docSnap.id);
     });
 
@@ -426,12 +430,17 @@ exports.dmSendResumeEmailToOne = functions
       if (snapshot.empty) return res.status(404).json({ error: "User not found", searched: targetEmail });
 
       const docSnap = snapshot.docs[0];
+      // Optional: flip env on doc before sending (used for one-off iOS→Web exceptions).
+      if (req.query.setEnv && typeof req.query.setEnv === "string") {
+        await db.collection("results").doc(docSnap.id).update({ env: req.query.setEnv });
+      }
       const result = await sendResumeEmailFor(db.collection("results").doc(docSnap.id), {});
       const data = (await db.collection("results").doc(docSnap.id).get()).data();
       return res.json({
         ...result,
         sentTo: targetEmail,
         docId: docSnap.id,
+        env: data.env,
         resumeUrl: `https://discovermore.app/app/?resume=${data.resumeToken}`,
         resumeEmailCount: data.resumeEmailCount,
       });
@@ -439,6 +448,183 @@ exports.dmSendResumeEmailToOne = functions
       console.error("dmSendResumeEmailToOne error:", e);
       return res.status(500).json({ ok: false, error: String(e) });
     }
+  });
+
+// Read-only eligibility audit — who's about to receive a resume email and why.
+exports.dmEligibilityReport = functions
+  .region("us-central1")
+  .runWith({ maxInstances: 1, timeoutSeconds: 60 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+
+    const db = admin.firestore();
+    const now = Date.now();
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+
+    const snapshot = await db.collection("results").get();
+
+    const dailyTomorrow = [];
+    const saturdayProjected = [];
+    const cappedOut = [];
+    const tooNew = [];
+    const noEmail = [];
+    const nonWeb = [];
+    let completeCount = 0;
+    let totalDocs = 0;
+
+    snapshot.forEach((docSnap) => {
+      totalDocs++;
+      const d = docSnap.data();
+      const id = docSnap.id;
+
+      if (d.updated && d.updated !== "1") { completeCount++; return; }
+
+      const createdMs = d.created && d.created.toMillis ? d.created.toMillis() : 0;
+      const lastEmailMs = d.resumeEmailSentAt && d.resumeEmailSentAt.toMillis ? d.resumeEmailSentAt.toMillis() : 0;
+      const count = d.resumeEmailCount || 0;
+      const item = {
+        id,
+        name: d.NAME || "(no name)",
+        email: d.EMAIL || "",
+        env: d.env || "?",
+        createdMs,
+        createdStr: createdMs ? new Date(createdMs).toISOString() : "",
+        hoursSinceCreated: createdMs ? Math.round((now - createdMs) / 3600000) : null,
+        emailCount: count,
+        lastEmailStr: lastEmailMs ? new Date(lastEmailMs).toISOString() : "",
+        daysSinceLastEmail: lastEmailMs ? Math.round((now - lastEmailMs) / 86400000 * 10) / 10 : null,
+      };
+
+      if (d.env !== "Web") { nonWeb.push(item); return; }
+      if (!d.EMAIL) { noEmail.push(item); return; }
+
+      // Tomorrow's daily 9 AM HST cron predicate
+      if (createdMs > 0 && createdMs <= dayAgo && !d.resumeEmailSentAt) {
+        dailyTomorrow.push(item);
+      }
+
+      // Saturday cron predicate (next fires 2026-05-02): signed up in past 14 days, count < 3, signed up >= 1 day ago
+      if (createdMs > 0 && createdMs >= fourteenDaysAgo && createdMs <= dayAgo && count < 3) {
+        saturdayProjected.push(item);
+      }
+
+      // Out of all signed-up incomplete web users, the rest are skipped:
+      if (count >= 3) { cappedOut.push(item); return; }
+      if (createdMs > dayAgo) { tooNew.push(item); return; }
+    });
+
+    // Sort each group by signup date desc
+    const sortDesc = (a, b) => b.createdMs - a.createdMs;
+    [dailyTomorrow, saturdayProjected, cappedOut, tooNew, noEmail, nonWeb].forEach(arr => arr.sort(sortDesc));
+
+    const escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    const row = (it) => `<tr>
+      <td>${escapeHtml(it.name)}</td>
+      <td><code>${escapeHtml(it.email)}</code></td>
+      <td>${it.createdStr ? it.createdStr.slice(0, 10) : "?"}</td>
+      <td>${it.hoursSinceCreated == null ? "?" : it.hoursSinceCreated + "h"}</td>
+      <td>${it.emailCount}</td>
+      <td>${it.lastEmailStr ? it.lastEmailStr.slice(0, 16).replace("T", " ") : "—"}</td>
+      <td>${it.daysSinceLastEmail == null ? "—" : it.daysSinceLastEmail + "d"}</td>
+    </tr>`;
+    const tableBody = (items) => items.length ? items.map(row).join("") : `<tr><td colspan="7" style="color:#757575;text-align:center;font-style:italic;padding:1rem;">none</td></tr>`;
+
+    const tomorrow = new Date(now + 24 * 3600000);
+    const tomorrowStr = `${tomorrow.getUTCFullYear()}-${String(tomorrow.getUTCMonth()+1).padStart(2,"0")}-${String(tomorrow.getUTCDate()).padStart(2,"0")}`;
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>DM Eligibility Report — ${tomorrowStr}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+  header { border-bottom: 3px solid #4CAF50; padding-bottom: 1rem; margin-bottom: 2rem; }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.85rem; color: #2E7D32; }
+  header .sub { color: #5a6478; font-size: 0.95rem; }
+  h2 { font-size: 1.2rem; margin: 2rem 0 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid #d8dde6; color: #2E7D32; }
+  h2 .count { color: #757575; font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin: 1rem 0 2rem; }
+  .stat { background: #F5F1E8; border-radius: 8px; padding: 0.85rem 1rem; }
+  .stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #757575; font-weight: 600; }
+  .stat .val { font-size: 1.75rem; font-weight: 700; color: #1B4B5A; line-height: 1.1; margin-top: 0.1rem; }
+  .hero { background: linear-gradient(135deg, #4CAF50, #2E7D32); color: #fff; padding: 1.25rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; }
+  .hero h2 { color: #fff; border: none; padding: 0; margin: 0 0 0.4rem; font-size: 1.15rem; }
+  .hero .num { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+  .hero .when { font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid #e8eaed; vertical-align: top; }
+  th { background: #F5F1E8; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6478; border-bottom: 2px solid #d4b896; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.84rem; color: #1B4B5A; }
+  .note { background: #fff8e1; border-left: 4px solid #FF9800; padding: 0.6rem 0.9rem; border-radius: 0 6px 6px 0; font-size: 0.9rem; margin: 1rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde6; color: #757575; font-size: 0.82rem; }
+</style></head>
+<body>
+
+<header>
+  <h1>Discover More — Resume Email Eligibility</h1>
+  <div class="sub">Snapshot for tomorrow's <code>dmSendResumeEmails</code> daily run · Generated ${new Date().toISOString().replace("T", " ").slice(0,16)} UTC</div>
+</header>
+
+<div class="hero">
+  <h2>Tomorrow's daily 9 AM HST send</h2>
+  <div class="num">${dailyTomorrow.length} email${dailyTomorrow.length === 1 ? "" : "s"}</div>
+  <div class="when">${tomorrowStr} · cron <code style="background:rgba(255,255,255,0.2);padding:0.1em 0.4em;border-radius:3px;">0 9 * * *</code> Pacific/Honolulu</div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Total docs</div><div class="val">${totalDocs}</div></div>
+  <div class="stat"><div class="label">Complete</div><div class="val">${completeCount}</div></div>
+  <div class="stat"><div class="label">Incomplete (web)</div><div class="val">${totalDocs - completeCount - nonWeb.length - noEmail.length}</div></div>
+  <div class="stat"><div class="label">Cap reached (3 emails)</div><div class="val">${cappedOut.length}</div></div>
+</div>
+
+<h2>Tomorrow's daily send <span class="count">${dailyTomorrow.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">Web users who signed up 24h+ ago, never received a resume email yet.</p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${tableBody(dailyTomorrow)}</tbody>
+</table>
+
+<h2>Projected for next Saturday <span class="count">${saturdayProjected.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">For context — fires Saturday 2026-05-02 at 7 AM HST. Web users incomplete, signed up 1-14 days ago, count &lt; 3.</p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${tableBody(saturdayProjected)}</tbody>
+</table>
+
+<h2>Skipped: too new <span class="count">${tooNew.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">Signed up &lt; 24h ago — not yet eligible.</p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${tableBody(tooNew)}</tbody>
+</table>
+
+<h2>Skipped: cap reached <span class="count">${cappedOut.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">Already received 3 emails — no more sends.</p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${tableBody(cappedOut)}</tbody>
+</table>
+
+<h2>Skipped: non-web <span class="count">${nonWeb.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">iOS/Android users — resume pipeline is web-only for now.</p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${tableBody(nonWeb)}</tbody>
+</table>
+
+${noEmail.length > 0 ? `<h2>Skipped: missing email <span class="count">${noEmail.length}</span></h2>
+<p style="color:#5a6478;font-size:0.92rem;">No email on file.</p>
+<table>
+  <thead><tr><th>Name</th><th>ID</th><th>Signup date</th><th>Age</th><th>Emails sent</th><th>Last email</th><th>Days since</th></tr></thead>
+  <tbody>${noEmail.map(it => `<tr><td>${escapeHtml(it.name)}</td><td><code>${escapeHtml(it.id)}</code></td><td>${it.createdStr ? it.createdStr.slice(0, 10) : "?"}</td><td>${it.hoursSinceCreated == null ? "?" : it.hoursSinceCreated + "h"}</td><td>${it.emailCount}</td><td>${it.lastEmailStr ? it.lastEmailStr.slice(0, 16).replace("T", " ") : "—"}</td><td>${it.daysSinceLastEmail == null ? "—" : it.daysSinceLastEmail + "d"}</td></tr>`).join("")}</tbody>
+</table>` : ""}
+
+<footer>Project <code>dm-auth-65cc4</code> · ${snapshot.size} docs scanned · Endpoint: <code>dmEligibilityReport</code> (delete when no longer needed)</footer>
+
+</body></html>`;
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
   });
 
 // Token-to-session exchange. Called by app.js when ?resume=TOKEN is in the URL.
