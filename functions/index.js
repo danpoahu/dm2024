@@ -634,6 +634,151 @@ ${noEmail.length > 0 ? `<h2>Skipped: missing email <span class="count">${noEmail
     return res.send(html);
   });
 
+// Email log report — list of users who've received at least one resume email,
+// with a "View" button to render the email body for each.
+exports.dmEmailLogReport = functions
+  .region("us-central1")
+  .runWith({ maxInstances: 1, timeoutSeconds: 60 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+
+    const db = admin.firestore();
+    const snapshot = await db.collection("results").orderBy("resumeEmailSentAt", "desc").get();
+
+    const rows = [];
+    snapshot.forEach((docSnap) => {
+      const d = docSnap.data();
+      const lastMs = d.resumeEmailSentAt && d.resumeEmailSentAt.toMillis ? d.resumeEmailSentAt.toMillis() : 0;
+      const createdMs = d.created && d.created.toMillis ? d.created.toMillis() : 0;
+      rows.push({
+        docId: docSnap.id,
+        name: d.NAME || "(no name)",
+        email: d.EMAIL || "",
+        env: d.env || "?",
+        signupDate: createdMs ? new Date(createdMs).toISOString().slice(0, 10) : "?",
+        lastSent: lastMs ? new Date(lastMs).toISOString().slice(0, 16).replace("T", " ") : "?",
+        lastSentMs: lastMs,
+        count: d.resumeEmailCount || 0,
+        complete: !!(d.updated && d.updated !== "1"),
+        hasToken: !!d.resumeToken,
+      });
+    });
+
+    const totalEmails = rows.reduce((sum, r) => sum + r.count, 0);
+    const completedAfterEmail = rows.filter(r => r.complete).length;
+    const stillIncomplete = rows.filter(r => !r.complete).length;
+    const cappedOutCount = rows.filter(r => r.count >= 3).length;
+
+    const escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+    const baseUrl = "https://us-central1-dm-auth-65cc4.cloudfunctions.net";
+    const viewUrl = (docId) => `${baseUrl}/dmViewSentEmail?key=dmtest2026&docId=${encodeURIComponent(docId)}`;
+
+    const row = (r) => {
+      const statusBadge = r.complete
+        ? '<span style="background:#e8f5ec;color:#2E7D32;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Completed</span>'
+        : (r.count >= 3
+          ? '<span style="background:#fde2e2;color:#a02525;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Capped (3 sent)</span>'
+          : '<span style="background:#fff3e0;color:#a05400;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Incomplete</span>');
+      const view = r.hasToken
+        ? `<a href="${viewUrl(r.docId)}" target="_blank" style="display:inline-block;background:#4CAF50;color:#fff;text-decoration:none;font-weight:600;padding:0.35em 0.85em;border-radius:4px;font-size:0.82rem;">View Email</a>`
+        : '<span style="color:#999;font-size:0.82rem;">no token</span>';
+      return `<tr>
+        <td>${escapeHtml(r.name)}</td>
+        <td><code>${escapeHtml(r.email)}</code></td>
+        <td>${r.signupDate}</td>
+        <td>${r.lastSent}</td>
+        <td style="text-align:center;">${r.count}</td>
+        <td>${statusBadge}</td>
+        <td>${view}</td>
+      </tr>`;
+    };
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>DM Email Log</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+  header { border-bottom: 3px solid #4CAF50; padding-bottom: 1rem; margin-bottom: 2rem; }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.85rem; color: #2E7D32; }
+  header .sub { color: #5a6478; font-size: 0.95rem; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; margin: 1rem 0 2rem; }
+  .stat { background: #F5F1E8; border-radius: 8px; padding: 0.85rem 1rem; }
+  .stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #757575; font-weight: 600; }
+  .stat .val { font-size: 1.75rem; font-weight: 700; color: #1B4B5A; line-height: 1.1; margin-top: 0.1rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid #e8eaed; vertical-align: middle; }
+  th { background: #F5F1E8; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6478; border-bottom: 2px solid #d4b896; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.84rem; color: #1B4B5A; }
+  .empty { text-align: center; color: #757575; padding: 2rem; font-style: italic; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde6; color: #757575; font-size: 0.82rem; }
+  .note { background: #eef4fb; border-left: 4px solid #8db4d8; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.9rem; margin: 1rem 0; }
+</style></head>
+<body>
+
+<header>
+  <h1>Discover More — Resume Email Log</h1>
+  <div class="sub">All recipients of resume emails · Generated ${new Date().toISOString().replace("T", " ").slice(0,16)} UTC</div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="label">Recipients</div><div class="val">${rows.length}</div></div>
+  <div class="stat"><div class="label">Total emails sent</div><div class="val">${totalEmails}</div></div>
+  <div class="stat"><div class="label">Completed after email</div><div class="val">${completedAfterEmail}</div></div>
+  <div class="stat"><div class="label">Still incomplete</div><div class="val">${stillIncomplete}</div></div>
+  <div class="stat"><div class="label">Capped (3 sent)</div><div class="val">${cappedOutCount}</div></div>
+</div>
+
+<div class="note">
+  <strong>About the View button:</strong> opens the rendered email in a new tab using each user's current resume token. Since we reuse the token across all 3 reminders, this preview is what they see in any of their emails.
+</div>
+
+<table>
+  <thead><tr>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Signup</th>
+    <th>Last sent (UTC)</th>
+    <th>Count</th>
+    <th>Status</th>
+    <th>Preview</th>
+  </tr></thead>
+  <tbody>
+    ${rows.length ? rows.map(row).join("") : `<tr><td colspan="7" class="empty">No resume emails sent yet.</td></tr>`}
+  </tbody>
+</table>
+
+<footer>Project <code>dm-auth-65cc4</code> · ${snapshot.size} recipients · Endpoints: <code>dmEmailLogReport</code> + <code>dmViewSentEmail</code></footer>
+
+</body></html>`;
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
+  });
+
+// Render the resume email body for a given user (used by Email Log "View" buttons).
+exports.dmViewSentEmail = functions
+  .region("us-central1")
+  .runWith({ maxInstances: 5, timeoutSeconds: 30 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+    const docId = req.query.docId;
+    if (!docId || typeof docId !== "string") return res.status(400).send("Need docId");
+
+    const db = admin.firestore();
+    const docSnap = await db.collection("results").doc(docId).get();
+    if (!docSnap.exists) return res.status(404).send("User not found");
+
+    const d = docSnap.data();
+    if (!d.resumeToken) return res.status(404).send("No email has been sent to this user yet (no resumeToken on doc)");
+
+    const resumeUrl = `https://discovermore.app/app/?resume=${d.resumeToken}`;
+    const firstName = (d.NAME || "").split(" ")[0] || "friend";
+    const html = buildResumeEmailHtml({ firstName, resumeUrl });
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
+  });
+
 // Token-to-session exchange. Called by app.js when ?resume=TOKEN is in the URL.
 exports.dmGetResumeSession = functions
   .region("us-central1")
