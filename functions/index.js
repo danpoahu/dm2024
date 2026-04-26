@@ -210,12 +210,19 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
             </td>
           </tr>
           <tr>
-            <td style="padding:0 40px 36px;">
+            <td style="padding:0 40px 12px;">
               <p style="margin:0 0 4px;font-size:13px;color:#757575;">
                 Or paste this into your browser:
               </p>
               <p style="margin:0;font-size:13px;color:#1B4B5A;word-break:break-all;line-height:1.5;">
                 ${resumeUrl}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 40px 32px;">
+              <p style="margin:0;font-size:13px;color:#757575;line-height:1.55;font-style:italic;">
+                <strong style="color:#A67C52;font-style:normal;">Tip:</strong> Save or bookmark this email so you can come back any time. Your link stays the same in any reminders we send.
               </p>
             </td>
           </tr>
@@ -234,7 +241,53 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
 </html>`;
 }
 
-// Daily scheduled job — find web users with incomplete surveys 24h+ old, send one resume email each.
+// Shared sender. Reuses existing token (so saved email links keep working).
+// Returns: { ok, sent? skipped?, reason? } — or throws on Resend/Firestore failure.
+async function sendResumeEmailFor(docRef, options) {
+  const { skipIfRecentHours = 0, capAt = Infinity } = options || {};
+  const docSnap = await docRef.get();
+  if (!docSnap.exists) return { ok: false, reason: "not_found" };
+
+  const data = docSnap.data();
+  if (data.updated && data.updated !== "1") return { ok: true, skipped: "already_complete" };
+  if (data.env !== "Web") return { ok: true, skipped: "not_web_user" };
+  if (!data.EMAIL) return { ok: true, skipped: "no_email" };
+
+  const count = data.resumeEmailCount || 0;
+  if (count >= capAt) return { ok: true, skipped: "cap_reached" };
+
+  if (skipIfRecentHours > 0 && data.resumeEmailSentAt) {
+    const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
+    if (Date.now() - lastSentMs < skipIfRecentHours * 60 * 60 * 1000) {
+      return { ok: true, skipped: "sent_recently" };
+    }
+  }
+
+  // Reuse existing token if present — preserves saved email links across reminders.
+  const token = data.resumeToken || crypto.randomBytes(32).toString("base64url");
+  const resumeUrl = `https://discovermore.app/app/?resume=${token}`;
+  const firstName = (data.NAME || "").split(" ")[0] || "friend";
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { data: sendData, error } = await resend.emails.send({
+    from: "Discover More <noreply@send.discovermore.app>",
+    to: [data.EMAIL],
+    subject: "Finish your Discover More survey",
+    html: buildResumeEmailHtml({ firstName, resumeUrl }),
+  });
+  if (error) throw new Error(error.message);
+
+  await docRef.update({
+    resumeToken: token,
+    resumeEmailSentAt: admin.firestore.Timestamp.now(),
+    resumeEmailCount: admin.firestore.FieldValue.increment(1),
+  });
+
+  return { ok: true, sent: true, resendId: sendData.id, email: data.EMAIL };
+}
+
+// Daily 9 AM HST safety net — catches anyone who slipped past immediate-send.
+// Eligibility: incomplete web user, created 24h+ ago, no email yet.
 exports.dmSendResumeEmails = functions
   .region("us-central1")
   .runWith({
@@ -249,10 +302,7 @@ exports.dmSendResumeEmails = functions
   .onRun(async () => {
     const db = admin.firestore();
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-
-    const snapshot = await db.collection("results")
-      .where("updated", "==", "1")
-      .get();
+    const snapshot = await db.collection("results").where("updated", "==", "1").get();
 
     const eligible = [];
     snapshot.forEach((docSnap) => {
@@ -261,46 +311,103 @@ exports.dmSendResumeEmails = functions
       if (createdMs === 0 || createdMs > dayAgo) return;
       if (data.resumeEmailSentAt) return;
       if (!data.EMAIL || data.env !== "Web") return;
-      eligible.push({ docId: docSnap.id, data });
+      eligible.push(docSnap.id);
     });
 
     console.log(`[dmSendResumeEmails] eligible=${eligible.length}`);
-    if (eligible.length === 0) return null;
-
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    let sent = 0;
-    let failed = 0;
-
-    for (const { docId, data } of eligible) {
-      const token = crypto.randomBytes(32).toString("base64url");
-      const resumeUrl = `https://discovermore.app/app/?resume=${token}`;
-      const firstName = (data.NAME || "").split(" ")[0] || "friend";
-
+    let sent = 0, failed = 0;
+    for (const docId of eligible) {
       try {
-        await resend.emails.send({
-          from: "Discover More <noreply@send.discovermore.app>",
-          to: [data.EMAIL],
-          subject: "Finish your Discover More survey",
-          html: buildResumeEmailHtml({ firstName, resumeUrl }),
-        });
-
-        await db.collection("results").doc(docId).update({
-          resumeToken: token,
-          resumeEmailSentAt: admin.firestore.Timestamp.now(),
-        });
-
-        sent++;
+        const r = await sendResumeEmailFor(db.collection("results").doc(docId), { capAt: 3 });
+        if (r.sent) sent++;
       } catch (e) {
-        console.error(`[dmSendResumeEmails] send failed for ${data.EMAIL}:`, e);
+        console.error(`[dmSendResumeEmails] failed for ${docId}:`, e);
         failed++;
       }
     }
-
     console.log(`[dmSendResumeEmails] sent=${sent} failed=${failed}`);
     return null;
   });
 
-// One-off test sender — fire a resume email to a specific email address. Delete after use.
+// Saturday 7 AM HST — sends follow-up #2 and #3 to incomplete users.
+// Caps at 3 total emails per user (initial + 2 Saturdays).
+exports.dmSendSaturdayResumeEmails = functions
+  .region("us-central1")
+  .runWith({
+    secrets: ["RESEND_API_KEY"],
+    maxInstances: 1,
+    timeoutSeconds: 540,
+    memory: "512MB",
+  })
+  .pubsub
+  .schedule("0 7 * * 6")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const sixDaysAgo = Date.now() - 6 * 24 * 60 * 60 * 1000;
+    const snapshot = await db.collection("results").where("updated", "==", "1").get();
+
+    const eligible = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.env !== "Web" || !data.EMAIL) return;
+      if (!data.resumeEmailSentAt) return; // never got initial — skip until daily cron sends one
+      const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
+      if (lastSentMs > sixDaysAgo) return; // sent within last 6 days, don't double up
+      const count = data.resumeEmailCount || 0;
+      if (count >= 3) return; // cap reached
+      eligible.push(docSnap.id);
+    });
+
+    console.log(`[dmSendSaturdayResumeEmails] eligible=${eligible.length}`);
+    let sent = 0, failed = 0;
+    for (const docId of eligible) {
+      try {
+        const r = await sendResumeEmailFor(db.collection("results").doc(docId), { capAt: 3 });
+        if (r.sent) sent++;
+      } catch (e) {
+        console.error(`[dmSendSaturdayResumeEmails] failed for ${docId}:`, e);
+        failed++;
+      }
+    }
+    console.log(`[dmSendSaturdayResumeEmails] sent=${sent} failed=${failed}`);
+    return null;
+  });
+
+// Immediate send — called by app.js Log Off button, inactivity timer, and beforeunload sendBeacon.
+// Accepts GET or POST. Skips if a send happened in the last 6 hours (dedupe).
+exports.dmSendResumeEmailNow = functions
+  .region("us-central1")
+  .runWith({
+    secrets: ["RESEND_API_KEY"],
+    maxInstances: 10,
+    timeoutSeconds: 30,
+  })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+
+    const docId = req.query.docId || (req.body && req.body.docId);
+    if (!docId || typeof docId !== "string") {
+      return res.status(400).json({ error: "Need docId" });
+    }
+
+    try {
+      const db = admin.firestore();
+      const result = await sendResumeEmailFor(
+        db.collection("results").doc(docId),
+        { skipIfRecentHours: 6, capAt: 3 }
+      );
+      return res.json(result);
+    } catch (e) {
+      console.error("[dmSendResumeEmailNow] error:", e);
+      return res.status(500).json({ error: String(e) });
+    }
+  });
+
+// Test sender by email (manual). Reuses helper. Bypasses recent-send dedupe.
 exports.dmSendResumeEmailToOne = functions
   .region("us-central1")
   .runWith({
@@ -309,48 +416,24 @@ exports.dmSendResumeEmailToOne = functions
     timeoutSeconds: 60,
   })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== "dmtest2026") {
-      return res.status(403).send("Forbidden");
-    }
+    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
     const targetEmail = (req.query.email || "").toLowerCase();
     if (!targetEmail) return res.status(400).json({ error: "Need ?email=" });
 
     try {
       const db = admin.firestore();
-      const snapshot = await db.collection("results")
-        .where("EMAIL", "==", targetEmail)
-        .limit(1)
-        .get();
-
+      const snapshot = await db.collection("results").where("EMAIL", "==", targetEmail).limit(1).get();
       if (snapshot.empty) return res.status(404).json({ error: "User not found", searched: targetEmail });
 
       const docSnap = snapshot.docs[0];
-      const data = docSnap.data();
-      const token = crypto.randomBytes(32).toString("base64url");
-      const resumeUrl = `https://discovermore.app/app/?resume=${token}`;
-      const firstName = (data.NAME || "").split(" ")[0] || "friend";
-
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const { data: sendData, error } = await resend.emails.send({
-        from: "Discover More <noreply@send.discovermore.app>",
-        to: [targetEmail],
-        subject: "Finish your Discover More survey",
-        html: buildResumeEmailHtml({ firstName, resumeUrl }),
-      });
-      if (error) return res.status(500).json({ ok: false, error: error.message });
-
-      await db.collection("results").doc(docSnap.id).update({
-        resumeToken: token,
-        resumeEmailSentAt: admin.firestore.Timestamp.now(),
-      });
-
+      const result = await sendResumeEmailFor(db.collection("results").doc(docSnap.id), {});
+      const data = (await db.collection("results").doc(docSnap.id).get()).data();
       return res.json({
-        ok: true,
+        ...result,
         sentTo: targetEmail,
-        firstName,
         docId: docSnap.id,
-        resendId: sendData.id,
-        resumeUrl,
+        resumeUrl: `https://discovermore.app/app/?resume=${data.resumeToken}`,
+        resumeEmailCount: data.resumeEmailCount,
       });
     } catch (e) {
       console.error("dmSendResumeEmailToOne error:", e);

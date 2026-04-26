@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=31';
-import { renderDashboard } from './dashboard.js?v=31';
-import { renderPersonality } from './personality.js?v=31';
-import { renderSGSurvey } from './sgsurvey.js?v=31';
-import { renderResults } from './results.js?v=31';
-import { renderProfile } from './profile.js?v=31';
-import { renderResources } from './resources.js?v=31';
+import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=32';
+import { renderDashboard } from './dashboard.js?v=32';
+import { renderPersonality } from './personality.js?v=32';
+import { renderSGSurvey } from './sgsurvey.js?v=32';
+import { renderResults } from './results.js?v=32';
+import { renderProfile } from './profile.js?v=32';
+import { renderResources } from './resources.js?v=32';
 
 const appEl = document.getElementById('app');
 
@@ -52,6 +52,39 @@ if (_resumeToken) {
 } else {
   showWelcomePopup();
 }
+
+// ============================================================
+// Inactivity + exit detection — fires immediate resume email
+// ============================================================
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const SEND_NOW_URL = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow';
+let _inactivityTimer = null;
+
+function _shouldFireResumeEmail() {
+  if (!currentSession || !currentSession.docId) return false;
+  if (userData && userData.updated && userData.updated !== '1') return false;
+  return true;
+}
+
+function _resetInactivityTimer() {
+  if (_inactivityTimer) clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(() => {
+    if (!_shouldFireResumeEmail()) return;
+    fetch(SEND_NOW_URL + '?docId=' + encodeURIComponent(currentSession.docId), { method: 'POST' })
+      .catch(e => console.error('Inactivity email failed:', e));
+  }, INACTIVITY_TIMEOUT_MS);
+}
+
+['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'visibilitychange'].forEach(evt => {
+  document.addEventListener(evt, _resetInactivityTimer, { passive: true });
+});
+
+window.addEventListener('beforeunload', () => {
+  if (!_shouldFireResumeEmail()) return;
+  navigator.sendBeacon(SEND_NOW_URL + '?docId=' + encodeURIComponent(currentSession.docId));
+});
+
+_resetInactivityTimer();
 
 async function handleResumeToken(token) {
   appEl.innerHTML = `
@@ -108,7 +141,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v31</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v32</span>
     </div>
   `;
 
