@@ -164,7 +164,14 @@ exports.dmHelpChat = functions
 // Survey Resume — email pipeline
 // ============================================================
 
+function extractTokenFromUrl(url) {
+  const m = String(url).match(/[?&]resume=([^&]+)/);
+  return m ? m[1] : "";
+}
+
 function buildResultsEmailHtml({ firstName, resumeUrl }) {
+  const token = extractTokenFromUrl(resumeUrl);
+  const saveLinkUrl = `https://discovermore.app/app/?savelink=${token}`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -203,9 +210,16 @@ function buildResultsEmailHtml({ firstName, resumeUrl }) {
             </td>
           </tr>
           <tr>
-            <td align="center" style="padding:0 40px 32px;">
+            <td align="center" style="padding:0 40px 16px;">
               <a href="${resumeUrl}" style="display:inline-block;background:#4CAF50;color:#FFFFFF;text-decoration:none;font-size:17px;font-weight:700;padding:15px 38px;border-radius:8px;letter-spacing:0.02em;">
                 View My Results
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px;">
+              <a href="${saveLinkUrl}" style="display:inline-block;background:transparent;color:#A67C52;text-decoration:none;font-size:14px;font-weight:600;padding:9px 22px;border:1.5px solid #D4B896;border-radius:6px;letter-spacing:0.02em;">
+                Save This Link
               </a>
             </td>
           </tr>
@@ -216,13 +230,6 @@ function buildResultsEmailHtml({ firstName, resumeUrl }) {
               </p>
               <p style="margin:0;font-size:13px;color:#1B4B5A;word-break:break-all;line-height:1.5;">
                 ${resumeUrl}
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 40px 32px;">
-              <p style="margin:0;font-size:13px;color:#757575;line-height:1.55;font-style:italic;">
-                <strong style="color:#A67C52;font-style:normal;">Tip:</strong> Save or bookmark this email so you can return to your results any time.
               </p>
             </td>
           </tr>
@@ -242,6 +249,8 @@ function buildResultsEmailHtml({ firstName, resumeUrl }) {
 }
 
 function buildResumeEmailHtml({ firstName, resumeUrl }) {
+  const token = extractTokenFromUrl(resumeUrl);
+  const saveLinkUrl = `https://discovermore.app/app/?savelink=${token}`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -280,9 +289,16 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
             </td>
           </tr>
           <tr>
-            <td align="center" style="padding:0 40px 32px;">
+            <td align="center" style="padding:0 40px 16px;">
               <a href="${resumeUrl}" style="display:inline-block;background:#4CAF50;color:#FFFFFF;text-decoration:none;font-size:17px;font-weight:700;padding:15px 38px;border-radius:8px;letter-spacing:0.02em;">
                 Resume My Survey
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px;">
+              <a href="${saveLinkUrl}" style="display:inline-block;background:transparent;color:#A67C52;text-decoration:none;font-size:14px;font-weight:600;padding:9px 22px;border:1.5px solid #D4B896;border-radius:6px;letter-spacing:0.02em;">
+                Save This Link
               </a>
             </td>
           </tr>
@@ -293,13 +309,6 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
               </p>
               <p style="margin:0;font-size:13px;color:#1B4B5A;word-break:break-all;line-height:1.5;">
                 ${resumeUrl}
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 40px 32px;">
-              <p style="margin:0;font-size:13px;color:#757575;line-height:1.55;font-style:italic;">
-                <strong style="color:#A67C52;font-style:normal;">Tip:</strong> Save or bookmark this email so you can come back any time. Your link stays the same in any reminders we send.
               </p>
             </td>
           </tr>

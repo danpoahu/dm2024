@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=33';
-import { renderDashboard } from './dashboard.js?v=33';
-import { renderPersonality } from './personality.js?v=33';
-import { renderSGSurvey } from './sgsurvey.js?v=33';
-import { renderResults } from './results.js?v=33';
-import { renderProfile } from './profile.js?v=33';
-import { renderResources } from './resources.js?v=33';
+import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=34';
+import { renderDashboard } from './dashboard.js?v=34';
+import { renderPersonality } from './personality.js?v=34';
+import { renderSGSurvey } from './sgsurvey.js?v=34';
+import { renderResults } from './results.js?v=34';
+import { renderProfile } from './profile.js?v=34';
+import { renderResources } from './resources.js?v=34';
 
 const appEl = document.getElementById('app');
 
@@ -44,13 +44,65 @@ function handleRoute() {
 
 window.addEventListener('hashchange', handleRoute);
 
-// If the URL has ?resume=TOKEN we came from a resume email — restore session instead of showing welcome.
+// Route on URL params: ?savelink=TOKEN -> save-link page; ?resume=TOKEN -> restore session; else welcome.
 const _resumeParams = new URLSearchParams(window.location.search);
 const _resumeToken = _resumeParams.get('resume');
-if (_resumeToken) {
+const _saveLinkToken = _resumeParams.get('savelink');
+if (_saveLinkToken) {
+  showSaveLinkPage(_saveLinkToken);
+} else if (_resumeToken) {
   handleResumeToken(_resumeToken);
 } else {
   showWelcomePopup();
+}
+
+function showSaveLinkPage(token) {
+  const fullUrl = `https://discovermore.app/app/?resume=${token}`;
+  const hasShare = typeof navigator !== 'undefined' && !!navigator.share;
+  appEl.innerHTML = `
+    <div class="screen" style="padding:1.5rem;background:#F5F1E8;min-height:100vh;display:flex;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:14px;padding:2rem 1.5rem;max-width:480px;width:100%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" style="width:200px;display:block;margin:0 auto 1rem;">
+        <div style="height:3px;background:#FF9800;width:60px;margin:0 auto 1.25rem;border-radius:2px;"></div>
+        <h2 style="margin:0 0 0.75rem;color:#2E7D32;font-size:1.4rem;">Save your link</h2>
+        <p style="margin:0 0 1rem;color:#1A1A1A;font-size:0.95rem;line-height:1.55;">
+          Tap <strong>Copy Link</strong> to copy your personal Discover More link to your clipboard. You can then paste it into Notes, Messages, or anywhere you'll find it later.
+        </p>
+        <div style="background:#F5F1E8;padding:0.75rem;border-radius:6px;margin:1rem 0;font-size:0.82rem;color:#1B4B5A;word-break:break-all;font-family:'SF Mono',Menlo,Consolas,monospace;line-height:1.5;text-align:left;">
+          ${fullUrl}
+        </div>
+        <button id="copy-btn" class="btn btn-primary" style="width:100%;margin-bottom:0.5rem;">Copy Link</button>
+        ${hasShare ? `<button id="share-btn" class="btn btn-secondary" style="width:100%;margin-bottom:0.5rem;">Share / Save to Other Apps</button>` : ''}
+        <p id="copy-status" style="margin:0.75rem 0 0.5rem;color:#2E7D32;font-size:0.9rem;font-weight:600;min-height:1.3em;"></p>
+        <p style="margin:0.75rem 0 1rem;color:#757575;font-size:0.8rem;line-height:1.5;">
+          On a computer? You can also press <strong>Cmd+D</strong> (Mac) or <strong>Ctrl+D</strong> (Windows) to bookmark this page in your browser.
+        </p>
+        <a href="/app/?resume=${token}" style="display:inline-block;color:#5a6478;font-size:0.85rem;text-decoration:underline;padding:0.5rem;">Continue to Discover More</a>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('copy-btn').addEventListener('click', async () => {
+    const status = document.getElementById('copy-status');
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      status.textContent = '✓ Link copied to clipboard';
+      status.style.color = '#2E7D32';
+    } catch (e) {
+      status.textContent = 'Tap and hold the link above to copy it manually.';
+      status.style.color = '#A67C52';
+    }
+  });
+
+  if (hasShare) {
+    document.getElementById('share-btn').addEventListener('click', async () => {
+      try {
+        await navigator.share({ title: 'Discover More', text: 'My Discover More link', url: fullUrl });
+      } catch (e) {
+        if (e && e.name !== 'AbortError') console.error('Share failed:', e);
+      }
+    });
+  }
 }
 
 // ============================================================
@@ -138,7 +190,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v33</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v34</span>
     </div>
   `;
 
