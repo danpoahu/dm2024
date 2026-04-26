@@ -164,6 +164,83 @@ exports.dmHelpChat = functions
 // Survey Resume — email pipeline
 // ============================================================
 
+function buildResultsEmailHtml({ firstName, resumeUrl }) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your Discover More results</title>
+</head>
+<body style="margin:0;padding:0;background:#F5F1E8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1A1A1A;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F1E8;padding:30px 15px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#F5F1E8;">
+          <tr>
+            <td align="center" style="padding:32px 40px 20px;background:#F5F1E8;">
+              <img src="https://discovermore.app/DiscoverMoreLogo.png" alt="Discover More" width="240" style="display:block;border:0;outline:none;text-decoration:none;height:auto;max-width:240px;background:#F5F1E8;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="height:4px;background:#FF9800;line-height:4px;font-size:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px 8px;">
+              <h1 style="margin:0 0 18px;color:#2E7D32;font-size:26px;font-weight:700;line-height:1.2;">Aloha ${firstName},</h1>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1A1A1A;">
+                Thank you for completing the <strong>Discover More</strong> survey.
+              </p>
+              <p style="margin:0 0 28px;font-size:16px;line-height:1.6;color:#1A1A1A;">
+                Your results are saved &mdash; use the button or link below any time you'd like to review or print them.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px;">
+              <a href="${resumeUrl}" style="display:inline-block;background:#4CAF50;color:#FFFFFF;text-decoration:none;font-size:17px;font-weight:700;padding:15px 38px;border-radius:8px;letter-spacing:0.02em;">
+                View My Results
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px 12px;">
+              <p style="margin:0 0 4px;font-size:13px;color:#757575;">
+                Or paste this into your browser:
+              </p>
+              <p style="margin:0;font-size:13px;color:#1B4B5A;word-break:break-all;line-height:1.5;">
+                ${resumeUrl}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 40px 32px;">
+              <p style="margin:0;font-size:13px;color:#757575;line-height:1.55;font-style:italic;">
+                <strong style="color:#A67C52;font-style:normal;">Tip:</strong> Save or bookmark this email so you can return to your results any time.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 40px 32px;border-top:2px solid #D4B896;">
+              <p style="margin:0;font-size:14px;color:#2E7D32;line-height:1.5;font-weight:700;letter-spacing:0.02em;">
+                Anchor Church &mdash; Discover More
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 function buildResumeEmailHtml({ firstName, resumeUrl }) {
   return `<!DOCTYPE html>
 <html>
@@ -241,21 +318,43 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
 </html>`;
 }
 
-// Shared sender. Reuses existing token (so saved email links keep working).
-// Returns: { ok, sent? skipped?, reason? } — or throws on Resend/Firestore failure.
+// Shared sender — dispatches based on completion status.
+// Complete users get the results email (once). Incomplete users get the resume email
+// (with cap and recency dedupe). Reuses existing resumeToken so saved links keep working.
 async function sendResumeEmailFor(docRef, options) {
   const { skipIfRecentHours = 0, capAt = Infinity } = options || {};
   const docSnap = await docRef.get();
   if (!docSnap.exists) return { ok: false, reason: "not_found" };
 
   const data = docSnap.data();
-  if (data.updated && data.updated !== "1") return { ok: true, skipped: "already_complete" };
   if (data.env !== "Web") return { ok: true, skipped: "not_web_user" };
   if (!data.EMAIL) return { ok: true, skipped: "no_email" };
 
+  const isComplete = data.updated && data.updated !== "1";
+  const token = data.resumeToken || crypto.randomBytes(32).toString("base64url");
+  const resumeUrl = `https://discovermore.app/app/?resume=${token}`;
+  const firstName = (data.NAME || "").split(" ")[0] || "friend";
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  if (isComplete) {
+    if (data.resultsEmailSentAt) return { ok: true, skipped: "results_email_already_sent" };
+    const { data: sendData, error } = await resend.emails.send({
+      from: "Discover More <noreply@send.discovermore.app>",
+      to: [data.EMAIL],
+      subject: "Your Discover More results",
+      html: buildResultsEmailHtml({ firstName, resumeUrl }),
+    });
+    if (error) throw new Error(error.message);
+    await docRef.update({
+      resumeToken: token,
+      resultsEmailSentAt: admin.firestore.Timestamp.now(),
+    });
+    return { ok: true, sent: true, kind: "results", resendId: sendData.id, email: data.EMAIL };
+  }
+
+  // Incomplete — resume email path
   const count = data.resumeEmailCount || 0;
   if (count >= capAt) return { ok: true, skipped: "cap_reached" };
-
   if (skipIfRecentHours > 0 && data.resumeEmailSentAt) {
     const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
     if (Date.now() - lastSentMs < skipIfRecentHours * 60 * 60 * 1000) {
@@ -263,12 +362,6 @@ async function sendResumeEmailFor(docRef, options) {
     }
   }
 
-  // Reuse existing token if present — preserves saved email links across reminders.
-  const token = data.resumeToken || crypto.randomBytes(32).toString("base64url");
-  const resumeUrl = `https://discovermore.app/app/?resume=${token}`;
-  const firstName = (data.NAME || "").split(" ")[0] || "friend";
-
-  const resend = new Resend(process.env.RESEND_API_KEY);
   const { data: sendData, error } = await resend.emails.send({
     from: "Discover More <noreply@send.discovermore.app>",
     to: [data.EMAIL],
@@ -283,11 +376,11 @@ async function sendResumeEmailFor(docRef, options) {
     resumeEmailCount: admin.firestore.FieldValue.increment(1),
   });
 
-  return { ok: true, sent: true, resendId: sendData.id, email: data.EMAIL };
+  return { ok: true, sent: true, kind: "resume", resendId: sendData.id, email: data.EMAIL };
 }
 
-// Daily 9 AM HST safety net — catches anyone who slipped past immediate-send.
-// Eligibility: incomplete web user, created 24h+ ago, no email yet.
+// Daily 9 AM HST safety net — catches anyone who slipped past immediate-send,
+// AND backfills results emails for completed users who haven't received one yet.
 exports.dmSendResumeEmails = functions
   .region("us-central1")
   .runWith({
@@ -302,16 +395,22 @@ exports.dmSendResumeEmails = functions
   .onRun(async () => {
     const db = admin.firestore();
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const snapshot = await db.collection("results").where("updated", "==", "1").get();
+    const snapshot = await db.collection("results").get();
 
     const eligible = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      const createdMs = data.created && data.created.toMillis ? data.created.toMillis() : 0;
-      if (createdMs === 0 || createdMs > dayAgo) return;
-      if (data.resumeEmailSentAt) return;
-      if (!data.EMAIL || data.env !== "Web") return;
-      eligible.push(docSnap.id);
+      if (data.env !== "Web" || !data.EMAIL) return;
+      const isComplete = data.updated && data.updated !== "1";
+      if (isComplete) {
+        if (data.resultsEmailSentAt) return; // already got results email
+        eligible.push(docSnap.id);
+      } else {
+        const createdMs = data.created && data.created.toMillis ? data.created.toMillis() : 0;
+        if (createdMs === 0 || createdMs > dayAgo) return; // < 1 day old
+        if (data.resumeEmailSentAt) return; // already got resume email
+        eligible.push(docSnap.id);
+      }
     });
 
     console.log(`[dmSendResumeEmails] eligible=${eligible.length}`);

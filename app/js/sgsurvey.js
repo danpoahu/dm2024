@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=32';
-import { navigate, userData, setUserData, currentSession, pendingDISC, setPendingDISC } from './app.js?v=32';
-import { SG_QUESTIONS } from './data.js?v=32';
+import { db, doc, updateDoc } from './firebase-config.js?v=33';
+import { navigate, userData, setUserData, currentSession, pendingDISC, setPendingDISC } from './app.js?v=33';
+import { SG_QUESTIONS } from './data.js?v=33';
 
 export function renderSGSurvey(container) {
   const responses = new Array(72).fill(0);
@@ -131,6 +131,9 @@ export function renderSGSurvey(container) {
           setUserData(userData);
         }
         setPendingDISC(null);
+        // Fire results email (dispatcher routes to results template since updated !== '1' now)
+        fetch('https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow?docId=' + encodeURIComponent(currentSession.docId), { method: 'POST' })
+          .catch(e => console.error('Results email send failed:', e));
         navigate('/results');
         return;
       } catch (e) {
