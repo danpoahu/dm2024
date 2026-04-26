@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=28';
-import { navigate, userData, setUserData, currentSession, pendingDISC, setPendingDISC } from './app.js?v=28';
-import { SG_QUESTIONS } from './data.js?v=28';
+import { db, doc, updateDoc } from './firebase-config.js?v=31';
+import { navigate, userData, setUserData, currentSession, pendingDISC, setPendingDISC } from './app.js?v=31';
+import { SG_QUESTIONS } from './data.js?v=31';
 
 export function renderSGSurvey(container) {
   const responses = new Array(72).fill(0);

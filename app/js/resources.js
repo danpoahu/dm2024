@@ -1,5 +1,5 @@
-import { navigate } from './app.js?v=28';
-import { WAYS_TO_SERVE } from './data.js?v=28';
+import { navigate } from './app.js?v=31';
+import { WAYS_TO_SERVE } from './data.js?v=31';
 
 export function renderResources(container) {
   container.innerHTML = `
@@ -11,9 +11,9 @@ export function renderResources(container) {
       </div>
 
       <div class="dash-buttons">
-        <a href="https://discovermore.app/pdf/Discovery1.pdf" target="_blank" class="dash-btn">Discovery 1 PDF</a>
-        <a href="https://discovermore.app/pdf/Discovery2.pdf" target="_blank" class="dash-btn">Discovery 2 PDF</a>
-        <a href="https://discovermore.app/pdf/Discovery3.pdf" target="_blank" class="dash-btn">Discovery 3 PDF</a>
+        <a href="https://discovermore.app/pdf/Discovery1.pdf" target="_blank" class="dash-btn">Discovery 1 W1</a>
+        <a href="https://discovermore.app/pdf/Discovery2.pdf" target="_blank" class="dash-btn">Discovery 1 W2</a>
+        <a href="https://discovermore.app/pdf/Discovery3.pdf" target="_blank" class="dash-btn">Discovery 1 W3</a>
         <button class="dash-btn" id="ways-to-serve-btn">Ways to Serve</button>
         <a href="https://www.myanchor.church/" target="_blank" class="dash-btn">Anchor Church Website</a>
       </div>

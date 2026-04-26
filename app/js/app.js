@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=28';
-import { renderDashboard } from './dashboard.js?v=28';
-import { renderPersonality } from './personality.js?v=28';
-import { renderSGSurvey } from './sgsurvey.js?v=28';
-import { renderResults } from './results.js?v=28';
-import { renderProfile } from './profile.js?v=28';
-import { renderResources } from './resources.js?v=28';
+import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=31';
+import { renderDashboard } from './dashboard.js?v=31';
+import { renderPersonality } from './personality.js?v=31';
+import { renderSGSurvey } from './sgsurvey.js?v=31';
+import { renderResults } from './results.js?v=31';
+import { renderProfile } from './profile.js?v=31';
+import { renderResources } from './resources.js?v=31';
 
 const appEl = document.getElementById('app');
 
@@ -44,8 +44,53 @@ function handleRoute() {
 
 window.addEventListener('hashchange', handleRoute);
 
-// Show welcome popup, then dashboard
-showWelcomePopup();
+// If the URL has ?resume=TOKEN we came from a resume email — restore session instead of showing welcome.
+const _resumeParams = new URLSearchParams(window.location.search);
+const _resumeToken = _resumeParams.get('resume');
+if (_resumeToken) {
+  handleResumeToken(_resumeToken);
+} else {
+  showWelcomePopup();
+}
+
+async function handleResumeToken(token) {
+  appEl.innerHTML = `
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem;background:#F5F1E8;min-height:100vh;">
+      <div>
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" style="width:140px;margin-bottom:1.5rem;">
+        <p style="color:#2E7D32;font-size:1.05rem;font-weight:600;margin:0;">Loading your saved progress...</p>
+      </div>
+    </div>
+  `;
+  try {
+    const response = await fetch('https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmGetResumeSession?token=' + encodeURIComponent(token));
+    if (!response.ok) throw new Error('Token invalid or expired');
+    const session = await response.json();
+    if (!session.docId) throw new Error('Bad session response');
+
+    currentSession = { docId: session.docId, email: session.email, name: session.name };
+    userData = session.userData;
+
+    // Strip ?resume from URL so a refresh doesn't re-call the function.
+    const cleanUrl = window.location.pathname + (window.location.hash || '');
+    window.history.replaceState({}, '', cleanUrl);
+
+    navigate('/dashboard');
+    handleRoute();
+  } catch (e) {
+    console.error('Resume failed:', e);
+    appEl.innerHTML = `
+      <div class="screen" style="display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem;background:#F5F1E8;min-height:100vh;">
+        <div style="background:#fff;padding:2.25rem 1.75rem;border-radius:12px;max-width:420px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <img src="/DiscoverMoreLogo.png" alt="Discover More" style="width:120px;margin-bottom:1.25rem;">
+          <h2 style="color:#d32f2f;margin:0 0 1rem;font-size:1.4rem;">Link expired</h2>
+          <p style="color:#1A1A1A;margin:0 0 1.5rem;line-height:1.55;font-size:.95rem;">We couldn't restore your session. The resume link may have expired or already been used.</p>
+          <button class="btn btn-primary" onclick="window.location.href='/app/'">Start fresh</button>
+        </div>
+      </div>
+    `;
+  }
+}
 
 function showWelcomePopup() {
   appEl.innerHTML = `
@@ -54,13 +99,16 @@ function showWelcomePopup() {
       <div class="login-card">
         <h2>Welcome</h2>
         <p style="font-size:.9rem;color:#666;margin-bottom:16px;">Please enter your information to get started.</p>
+        <div style="background:#fff8e1;border:1px solid #f0d27a;border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:.85rem;color:#5a4400;line-height:1.45;text-align:left;">
+          <strong>Please complete your surveys in this session.</strong> If you leave before finishing, your progress will be lost.
+        </div>
         <input type="text" id="welcome-first" placeholder="First Name" autocomplete="given-name">
         <input type="text" id="welcome-last" placeholder="Last Name" autocomplete="family-name">
         <input type="email" id="welcome-email" placeholder="Email Address" autocomplete="email">
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v28</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v31</span>
     </div>
   `;
 
