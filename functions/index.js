@@ -328,10 +328,11 @@ function buildResumeEmailHtml({ firstName, resumeUrl }) {
 }
 
 // Shared sender — dispatches based on completion status.
-// Complete users get the results email (once). Incomplete users get the resume email
-// (with cap and recency dedupe). Reuses existing resumeToken so saved links keep working.
+// Complete users get the results email (once unless force=true). Incomplete users get the resume
+// email (with cap and recency dedupe; force=true bypasses dedupe but respects the 3-email cap).
+// Each successful send is logged to the `emailLog` Firestore collection for audit and resend.
 async function sendResumeEmailFor(docRef, options) {
-  const { skipIfRecentHours = 0, capAt = Infinity } = options || {};
+  const { skipIfRecentHours = 0, capAt = Infinity, force = false, triggeredBy = "unknown" } = options || {};
   const docSnap = await docRef.get();
   if (!docSnap.exists) return { ok: false, reason: "not_found" };
 
@@ -345,47 +346,70 @@ async function sendResumeEmailFor(docRef, options) {
   const firstName = (data.NAME || "").split(" ")[0] || "friend";
   const resend = new Resend(process.env.RESEND_API_KEY);
 
+  let subject, html, kind, count;
   if (isComplete) {
-    if (data.resultsEmailSentAt) return { ok: true, skipped: "results_email_already_sent" };
-    const { data: sendData, error } = await resend.emails.send({
-      from: "Discover More <noreply@send.discovermore.app>",
-      to: [data.EMAIL],
-      subject: "Your Discover More results",
-      html: buildResultsEmailHtml({ firstName, resumeUrl }),
-    });
-    if (error) throw new Error(error.message);
-    await docRef.update({
-      resumeToken: token,
-      resultsEmailSentAt: admin.firestore.Timestamp.now(),
-    });
-    return { ok: true, sent: true, kind: "results", resendId: sendData.id, email: data.EMAIL };
-  }
-
-  // Incomplete — resume email path
-  const count = data.resumeEmailCount || 0;
-  if (count >= capAt) return { ok: true, skipped: "cap_reached" };
-  if (skipIfRecentHours > 0 && data.resumeEmailSentAt) {
-    const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
-    if (Date.now() - lastSentMs < skipIfRecentHours * 60 * 60 * 1000) {
-      return { ok: true, skipped: "sent_recently" };
+    if (data.resultsEmailSentAt && !force) return { ok: true, skipped: "results_email_already_sent" };
+    subject = "Your Discover More results";
+    html = buildResultsEmailHtml({ firstName, resumeUrl });
+    kind = "results";
+    count = null;
+  } else {
+    const currentCount = data.resumeEmailCount || 0;
+    if (currentCount >= capAt) return { ok: true, skipped: "cap_reached" };
+    if (skipIfRecentHours > 0 && !force && data.resumeEmailSentAt) {
+      const lastSentMs = data.resumeEmailSentAt.toMillis ? data.resumeEmailSentAt.toMillis() : 0;
+      if (Date.now() - lastSentMs < skipIfRecentHours * 60 * 60 * 1000) {
+        return { ok: true, skipped: "sent_recently" };
+      }
     }
+    subject = "Finish your Discover More survey";
+    html = buildResumeEmailHtml({ firstName, resumeUrl });
+    kind = "resume";
+    count = currentCount + 1;
   }
 
   const { data: sendData, error } = await resend.emails.send({
     from: "Discover More <noreply@send.discovermore.app>",
     to: [data.EMAIL],
-    subject: "Finish your Discover More survey",
-    html: buildResumeEmailHtml({ firstName, resumeUrl }),
+    subject,
+    html,
   });
   if (error) throw new Error(error.message);
 
-  await docRef.update({
-    resumeToken: token,
-    resumeEmailSentAt: admin.firestore.Timestamp.now(),
-    resumeEmailCount: admin.firestore.FieldValue.increment(1),
-  });
+  // Update the user doc
+  if (kind === "results") {
+    await docRef.update({
+      resumeToken: token,
+      resultsEmailSentAt: admin.firestore.Timestamp.now(),
+    });
+  } else {
+    await docRef.update({
+      resumeToken: token,
+      resumeEmailSentAt: admin.firestore.Timestamp.now(),
+      resumeEmailCount: admin.firestore.FieldValue.increment(1),
+    });
+  }
 
-  return { ok: true, sent: true, kind: "resume", resendId: sendData.id, email: data.EMAIL };
+  // Persist the actual sent email to emailLog (audit + admin resend reference)
+  try {
+    await admin.firestore().collection("emailLog").add({
+      sentAt: admin.firestore.Timestamp.now(),
+      to: data.EMAIL,
+      name: data.NAME || "",
+      subject,
+      html,
+      resendId: sendData.id || null,
+      userDocId: docRef.id,
+      kind,
+      count: count,
+      forced: !!force,
+      triggeredBy,
+    });
+  } catch (logErr) {
+    console.error("[emailLog write failed — non-fatal]", logErr);
+  }
+
+  return { ok: true, sent: true, kind, resendId: sendData.id, email: data.EMAIL };
 }
 
 // Daily 9 AM HST safety net — catches anyone who slipped past immediate-send,
@@ -526,12 +550,12 @@ exports.dmSendResumeEmailNow = functions
 exports.dmSendResumeEmailToOne = functions
   .region("us-central1")
   .runWith({
-    secrets: ["RESEND_API_KEY"],
+    secrets: ["RESEND_API_KEY", "DM_ADMIN_KEY"],
     maxInstances: 1,
     timeoutSeconds: 60,
   })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
     const targetEmail = (req.query.email || "").toLowerCase();
     if (!targetEmail) return res.status(400).json({ error: "Need ?email=" });
 
@@ -564,9 +588,9 @@ exports.dmSendResumeEmailToOne = functions
 // Read-only eligibility audit — who's about to receive a resume email and why.
 exports.dmEligibilityReport = functions
   .region("us-central1")
-  .runWith({ maxInstances: 1, timeoutSeconds: 60 })
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
 
     const db = admin.firestore();
     const now = Date.now();
@@ -746,66 +770,104 @@ ${noEmail.length > 0 ? `<h2>Skipped: missing email <span class="count">${noEmail
 // with a "View" button to render the email body for each.
 exports.dmEmailLogReport = functions
   .region("us-central1")
-  .runWith({ maxInstances: 1, timeoutSeconds: 60 })
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
+    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
 
     const db = admin.firestore();
-    const snapshot = await db.collection("results").orderBy("resumeEmailSentAt", "desc").get();
+    const baseUrl = "https://us-central1-dm-auth-65cc4.cloudfunctions.net";
+    const adminKey = encodeURIComponent(req.query.key);
 
-    const rows = [];
-    snapshot.forEach((docSnap) => {
-      const d = docSnap.data();
-      const lastMs = d.resumeEmailSentAt && d.resumeEmailSentAt.toMillis ? d.resumeEmailSentAt.toMillis() : 0;
-      const createdMs = d.created && d.created.toMillis ? d.created.toMillis() : 0;
-      rows.push({
-        docId: docSnap.id,
-        name: d.NAME || "(no name)",
-        email: d.EMAIL || "",
-        env: d.env || "?",
-        signupDate: createdMs ? new Date(createdMs).toISOString().slice(0, 10) : "?",
-        lastSent: lastMs ? new Date(lastMs).toISOString().slice(0, 16).replace("T", " ") : "?",
-        lastSentMs: lastMs,
-        count: d.resumeEmailCount || 0,
-        complete: !!(d.updated && d.updated !== "1"),
-        hasToken: !!d.resumeToken,
+    // Source 1: emailLog collection (per-send audit, kept going forward)
+    const logSnapshot = await db.collection("emailLog").orderBy("sentAt", "desc").get();
+    const logRows = [];
+    logSnapshot.forEach((doc) => {
+      const d = doc.data();
+      const sentMs = d.sentAt && d.sentAt.toMillis ? d.sentAt.toMillis() : 0;
+      logRows.push({
+        source: "log",
+        logId: doc.id,
+        docId: d.userDocId || "",
+        name: d.name || "(no name)",
+        email: d.to || "",
+        subject: d.subject || "",
+        kind: d.kind || "?",
+        count: d.count == null ? "—" : d.count,
+        sentAt: sentMs ? new Date(sentMs).toISOString().slice(0, 16).replace("T", " ") : "?",
+        sentMs,
+        forced: !!d.forced,
+        triggeredBy: d.triggeredBy || "",
       });
     });
 
-    const totalEmails = rows.reduce((sum, r) => sum + r.count, 0);
-    const completedAfterEmail = rows.filter(r => r.complete).length;
-    const stillIncomplete = rows.filter(r => !r.complete).length;
-    const cappedOutCount = rows.filter(r => r.count >= 3).length;
+    // Source 2: legacy fallback — users with sentAt timestamps on results doc but no emailLog
+    // entry yet (sends that pre-date the emailLog collection).
+    const loggedDocIds = new Set(logRows.map((r) => r.docId).filter(Boolean));
+    const resultsSnapshot = await db.collection("results").get();
+    const legacyRows = [];
+    resultsSnapshot.forEach((docSnap) => {
+      if (loggedDocIds.has(docSnap.id)) return;
+      const d = docSnap.data();
+      const isComplete = d.updated && d.updated !== "1";
+      const lastMs = isComplete
+        ? (d.resultsEmailSentAt && d.resultsEmailSentAt.toMillis ? d.resultsEmailSentAt.toMillis() : 0)
+        : (d.resumeEmailSentAt && d.resumeEmailSentAt.toMillis ? d.resumeEmailSentAt.toMillis() : 0);
+      if (!lastMs) return;
+      legacyRows.push({
+        source: "legacy",
+        logId: null,
+        docId: docSnap.id,
+        name: d.NAME || "(no name)",
+        email: d.EMAIL || "",
+        subject: isComplete ? "Your Discover More results" : "Finish your Discover More survey",
+        kind: isComplete ? "results" : "resume",
+        count: d.resumeEmailCount == null ? "—" : (d.resumeEmailCount || 0),
+        sentAt: new Date(lastMs).toISOString().slice(0, 16).replace("T", " "),
+        sentMs: lastMs,
+        forced: false,
+        triggeredBy: "pre-emailLog",
+      });
+    });
 
-    const escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    const allRows = [...logRows, ...legacyRows].sort((a, b) => b.sentMs - a.sentMs);
+    const uniqueRecipients = new Set(allRows.map((r) => r.email)).size;
 
-    const baseUrl = "https://us-central1-dm-auth-65cc4.cloudfunctions.net";
-    const viewUrl = (docId) => `${baseUrl}/dmViewSentEmail?key=dmtest2026&docId=${encodeURIComponent(docId)}`;
+    const escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
-    const row = (r) => {
-      const statusBadge = r.complete
-        ? '<span style="background:#e8f5ec;color:#2E7D32;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Completed</span>'
-        : (r.count >= 3
-          ? '<span style="background:#fde2e2;color:#a02525;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Capped (3 sent)</span>'
-          : '<span style="background:#fff3e0;color:#a05400;padding:0.15em 0.5em;border-radius:3px;font-size:0.78rem;font-weight:600;">Incomplete</span>');
-      const view = r.hasToken
-        ? `<a href="${viewUrl(r.docId)}" target="_blank" style="display:inline-block;background:#4CAF50;color:#fff;text-decoration:none;font-weight:600;padding:0.35em 0.85em;border-radius:4px;font-size:0.82rem;">View Email</a>`
-        : '<span style="color:#999;font-size:0.82rem;">no token</span>';
-      return `<tr>
-        <td>${escapeHtml(r.name)}</td>
-        <td><code>${escapeHtml(r.email)}</code></td>
-        <td>${r.signupDate}</td>
-        <td>${r.lastSent}</td>
-        <td style="text-align:center;">${r.count}</td>
-        <td>${statusBadge}</td>
-        <td>${view}</td>
-      </tr>`;
+    const previewBtn = (r) => {
+      if (r.source === "log") {
+        return `<a href="${baseUrl}/dmViewSentEmail?key=${adminKey}&logId=${encodeURIComponent(r.logId)}" target="_blank" style="display:inline-block;background:#4CAF50;color:#fff;text-decoration:none;font-weight:600;padding:0.35em 0.85em;border-radius:4px;font-size:0.82rem;">View</a>`;
+      }
+      if (r.docId) {
+        return `<a href="${baseUrl}/dmViewSentEmail?key=${adminKey}&docId=${encodeURIComponent(r.docId)}" target="_blank" style="display:inline-block;background:#4CAF50;color:#fff;text-decoration:none;font-weight:600;padding:0.35em 0.85em;border-radius:4px;font-size:0.82rem;" title="Reconstructed from current template">View*</a>`;
+      }
+      return '<span style="color:#999;font-size:0.82rem;">—</span>';
     };
+    const resendBtn = (r) => r.docId
+      ? `<button onclick="resendOne('${r.docId}', this)" style="display:inline-block;background:#FFA34D;color:#fff;border:none;font-weight:600;padding:0.4em 0.9em;border-radius:4px;font-size:0.82rem;cursor:pointer;">Resend</button>`
+      : '<span style="color:#999;font-size:0.82rem;">—</span>';
+
+    const kindBadge = (kind) => {
+      if (kind === "results") return '<span style="background:#e8f5ec;color:#2E7D32;padding:0.15em 0.5em;border-radius:3px;font-size:0.75rem;font-weight:600;">Results</span>';
+      if (kind === "resume") return '<span style="background:#fff3e0;color:#a05400;padding:0.15em 0.5em;border-radius:3px;font-size:0.75rem;font-weight:600;">Resume</span>';
+      return '<span style="background:#eee;color:#666;padding:0.15em 0.5em;border-radius:3px;font-size:0.75rem;">—</span>';
+    };
+
+    const row = (r) => `<tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td><code>${escapeHtml(r.email)}</code></td>
+      <td>${kindBadge(r.kind)}</td>
+      <td style="text-align:center;">${r.count}</td>
+      <td>${r.sentAt}</td>
+      <td style="font-size:0.78rem;color:#757575;">${escapeHtml(r.triggeredBy)}${r.forced ? ' (forced)' : ''}</td>
+      <td>${previewBtn(r)}</td>
+      <td>${resendBtn(r)}</td>
+    </tr>`;
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>DM Email Log</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
   header { border-bottom: 3px solid #4CAF50; padding-bottom: 1rem; margin-bottom: 2rem; }
   header h1 { margin: 0 0 0.25rem; font-size: 1.85rem; color: #2E7D32; }
   header .sub { color: #5a6478; font-size: 0.95rem; }
@@ -820,42 +882,61 @@ exports.dmEmailLogReport = functions
   .empty { text-align: center; color: #757575; padding: 2rem; font-style: italic; }
   footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde6; color: #757575; font-size: 0.82rem; }
   .note { background: #eef4fb; border-left: 4px solid #8db4d8; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.9rem; margin: 1rem 0; }
-</style></head>
+</style>
+<script>
+async function resendOne(docId, btn) {
+  if (!confirm("Resend the appropriate email (resume or results) to this user?")) return;
+  btn.disabled = true; btn.textContent = "Sending...";
+  try {
+    const url = '${baseUrl}/dmAdminResend?key=${adminKey}&docId=' + encodeURIComponent(docId);
+    const r = await fetch(url);
+    const data = await r.json();
+    if (data.sent) { btn.textContent = "✓ Sent"; btn.style.background = "#4CAF50"; }
+    else if (data.skipped) { btn.textContent = "Skipped: " + data.skipped; }
+    else { btn.textContent = "Failed"; btn.style.background = "#d32f2f"; }
+  } catch (e) {
+    btn.textContent = "Error"; btn.style.background = "#d32f2f";
+    console.error(e);
+  }
+  setTimeout(() => { window.location.reload(); }, 1500);
+}
+</script>
+</head>
 <body>
 
 <header>
-  <h1>Discover More — Resume Email Log</h1>
-  <div class="sub">All recipients of resume emails · Generated ${new Date().toISOString().replace("T", " ").slice(0,16)} UTC</div>
+  <h1>Discover More — Email Log</h1>
+  <div class="sub">Every send recorded · Generated ${new Date().toISOString().replace("T", " ").slice(0,16)} UTC</div>
 </header>
 
 <div class="stats">
-  <div class="stat"><div class="label">Recipients</div><div class="val">${rows.length}</div></div>
-  <div class="stat"><div class="label">Total emails sent</div><div class="val">${totalEmails}</div></div>
-  <div class="stat"><div class="label">Completed after email</div><div class="val">${completedAfterEmail}</div></div>
-  <div class="stat"><div class="label">Still incomplete</div><div class="val">${stillIncomplete}</div></div>
-  <div class="stat"><div class="label">Capped (3 sent)</div><div class="val">${cappedOutCount}</div></div>
+  <div class="stat"><div class="label">Sends recorded</div><div class="val">${allRows.length}</div></div>
+  <div class="stat"><div class="label">Unique recipients</div><div class="val">${uniqueRecipients}</div></div>
+  <div class="stat"><div class="label">From log</div><div class="val">${logRows.length}</div></div>
+  <div class="stat"><div class="label">Legacy (pre-log)</div><div class="val">${legacyRows.length}</div></div>
 </div>
 
 <div class="note">
-  <strong>About the View button:</strong> opens the rendered email in a new tab using each user's current resume token. Since we reuse the token across all 3 reminders, this preview is what they see in any of their emails.
+  <strong>View</strong> opens the rendered email body in a new tab. Rows marked <strong>View*</strong> are reconstructed from the current template (these are sends that pre-date the <code>emailLog</code> collection). <strong>Resend</strong> fires the appropriate email type (resume or results) for that user, bypassing dedupe and "already-sent" guards.
 </div>
 
 <table>
   <thead><tr>
     <th>Name</th>
     <th>Email</th>
-    <th>Signup</th>
-    <th>Last sent (UTC)</th>
-    <th>Count</th>
-    <th>Status</th>
+    <th>Type</th>
+    <th>#</th>
+    <th>Sent (UTC)</th>
+    <th>Trigger</th>
     <th>Preview</th>
+    <th>Resend</th>
   </tr></thead>
   <tbody>
-    ${rows.length ? rows.map(row).join("") : `<tr><td colspan="7" class="empty">No resume emails sent yet.</td></tr>`}
+    ${allRows.length ? allRows.map(row).join("") : `<tr><td colspan="8" class="empty">No emails recorded yet.</td></tr>`}
   </tbody>
 </table>
 
-<footer>Project <code>dm-auth-65cc4</code> · ${snapshot.size} recipients · Endpoints: <code>dmEmailLogReport</code> + <code>dmViewSentEmail</code></footer>
+<footer>Project <code>dm-auth-65cc4</code> · ${allRows.length} sends · ${uniqueRecipients} recipients · Endpoints: <code>dmEmailLogReport</code> · <code>dmViewSentEmail</code> · <code>dmAdminResend</code></footer>
 
 </body></html>`;
 
@@ -866,13 +947,24 @@ exports.dmEmailLogReport = functions
 // Render the resume email body for a given user (used by Email Log "View" buttons).
 exports.dmViewSentEmail = functions
   .region("us-central1")
-  .runWith({ maxInstances: 5, timeoutSeconds: 30 })
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 5, timeoutSeconds: 30 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== "dmtest2026") return res.status(403).send("Forbidden");
-    const docId = req.query.docId;
-    if (!docId || typeof docId !== "string") return res.status(400).send("Need docId");
-
+    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
     const db = admin.firestore();
+
+    // Preferred: stored html from emailLog (?logId=XXX) — exact bytes that were sent.
+    if (req.query.logId && typeof req.query.logId === "string") {
+      const logSnap = await db.collection("emailLog").doc(req.query.logId).get();
+      if (!logSnap.exists) return res.status(404).send("Log entry not found");
+      res.set("Content-Type", "text/html; charset=utf-8");
+      return res.send(logSnap.data().html || "(no html stored)");
+    }
+
+    // Fallback: reconstruct from current template (?docId=XXX) — used for sends that
+    // pre-date the emailLog collection.
+    const docId = req.query.docId;
+    if (!docId || typeof docId !== "string") return res.status(400).send("Need docId or logId");
+
     const docSnap = await db.collection("results").doc(docId).get();
     if (!docSnap.exists) return res.status(404).send("User not found");
 
@@ -881,10 +973,40 @@ exports.dmViewSentEmail = functions
 
     const resumeUrl = `https://discovermore.app/app/?resume=${d.resumeToken}`;
     const firstName = (d.NAME || "").split(" ")[0] || "friend";
-    const html = buildResumeEmailHtml({ firstName, resumeUrl });
+    const isComplete = d.updated && d.updated !== "1";
+    const html = isComplete
+      ? buildResultsEmailHtml({ firstName, resumeUrl })
+      : buildResumeEmailHtml({ firstName, resumeUrl });
 
     res.set("Content-Type", "text/html; charset=utf-8");
     return res.send(html);
+  });
+
+// Admin-only resend — fires the appropriate email (resume or results) for a given user
+// docId, bypassing dedupe/already-sent guards. Returns JSON with the result.
+exports.dmAdminResend = functions
+  .region("us-central1")
+  .runWith({
+    secrets: ["RESEND_API_KEY", "DM_ADMIN_KEY"],
+    maxInstances: 5,
+    timeoutSeconds: 30,
+  })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    const docId = req.query.docId;
+    if (!docId || typeof docId !== "string") return res.status(400).json({ error: "Need docId" });
+
+    try {
+      const db = admin.firestore();
+      const result = await sendResumeEmailFor(
+        db.collection("results").doc(docId),
+        { force: true, triggeredBy: "admin-resend" }
+      );
+      return res.json(result);
+    } catch (e) {
+      console.error("[dmAdminResend] error:", e);
+      return res.status(500).json({ error: String(e) });
+    }
   });
 
 // Token-to-session exchange. Called by app.js when ?resume=TOKEN is in the URL.
