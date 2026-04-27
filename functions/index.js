@@ -1009,6 +1009,322 @@ exports.dmAdminResend = functions
     }
   });
 
+const SPIRITUAL_GIFT_NAMES = [
+  "Administration", "Apostleship", "Craftsmanship", "Discernment",
+  "Evangelism", "Exhortation", "Faith", "Giving",
+  "Healing", "Helps", "Hospitality", "Intercession",
+  "Knowledge", "Leadership", "Mercy", "Miracles",
+  "Missionary", "Music / Worship", "Pastor / Shepherd", "Prophecy",
+  "Service", "Teaching", "Tongues (and Interpretation)", "Wisdom"
+];
+
+exports.dmAnalyticsReport = functions
+  .region("us-central1")
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
+
+    const db = admin.firestore();
+    const snapshot = await db.collection("results").get();
+
+    let total = 0;
+    let completed = 0;
+    const disc = { D: 0, I: 0, S: 0, C: 0 };
+    const topGiftCounts = new Array(24).fill(0);
+    const giftScoreSum = new Array(24).fill(0);
+    const giftScoreN = new Array(24).fill(0);
+    const monthlySignups = {};
+    const monthlyCompletions = {};
+    const platformCounts = {};
+    const activity = { serving: 0, follow: 0, w1: 0, w2: 0, swag: 0, noServe: 0 };
+    const daysToComplete = [];
+
+    snapshot.forEach((docSnap) => {
+      total++;
+      const d = docSnap.data();
+
+      const env = d.env || "Unknown";
+      platformCounts[env] = (platformCounts[env] || 0) + 1;
+
+      const createdMs = d.created && d.created.toMillis ? d.created.toMillis() : 0;
+      if (createdMs) {
+        const dt = new Date(createdMs);
+        const m = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+        monthlySignups[m] = (monthlySignups[m] || 0) + 1;
+      }
+
+      const isComplete = d.updated && d.updated !== "1";
+      if (!isComplete) return;
+      completed++;
+
+      if (/^\d+\/\d+\/\d+$/.test(d.updated)) {
+        const [mo, dd, y] = d.updated.split("/");
+        const compDate = new Date(`${y}-${mo.padStart(2, "0")}-${dd.padStart(2, "0")}T00:00:00Z`);
+        const cm = `${compDate.getUTCFullYear()}-${String(compDate.getUTCMonth() + 1).padStart(2, "0")}`;
+        monthlyCompletions[cm] = (monthlyCompletions[cm] || 0) + 1;
+        if (createdMs) {
+          const days = Math.round((compDate.getTime() - createdMs) / 86400000);
+          if (days >= 0 && days < 365) daysToComplete.push(days);
+        }
+      }
+
+      if (d.discH && disc.hasOwnProperty(d.discH)) disc[d.discH]++;
+
+      // Gift scoring (24 gifts × 3 questions each)
+      const scores = [];
+      for (let i = 0; i < 24; i++) {
+        const z1 = Number(d["ZZ" + (i + 1)]) || 0;
+        const z2 = Number(d["ZZ" + (i + 25)]) || 0;
+        const z3 = Number(d["ZZ" + (i + 49)]) || 0;
+        const s = Math.min(z1 + z2 + z3, 9);
+        scores.push({ idx: i, score: s });
+        giftScoreSum[i] += s;
+        giftScoreN[i]++;
+      }
+      scores.sort((a, b) => b.score - a.score);
+      if (scores[0]) topGiftCounts[scores[0].idx]++;
+
+      const isTrue = (v) => v === "true" || v === true;
+      if (isTrue(d.Serving)) activity.serving++;
+      if (isTrue(d.Follow)) activity.follow++;
+      if (isTrue(d.W1)) activity.w1++;
+      if (isTrue(d.W2)) activity.w2++;
+      if (isTrue(d.Swag)) activity.swag++;
+      if (isTrue(d.NoServe)) activity.noServe++;
+    });
+
+    const completionRate = total > 0 ? Math.round((completed / total) * 1000) / 10 : 0;
+    const avgDays = daysToComplete.length
+      ? Math.round((daysToComplete.reduce((a, b) => a + b, 0) / daysToComplete.length) * 10) / 10
+      : 0;
+    let topGiftIdx = 0;
+    for (let i = 1; i < 24; i++) if (topGiftCounts[i] > topGiftCounts[topGiftIdx]) topGiftIdx = i;
+    const topGiftName = topGiftCounts[topGiftIdx] > 0 ? SPIRITUAL_GIFT_NAMES[topGiftIdx] : "—";
+    const topDiscEntry = Object.entries(disc).sort((a, b) => b[1] - a[1])[0];
+    const topDisc = (topDiscEntry && topDiscEntry[1] > 0) ? topDiscEntry[0] : "—";
+
+    const giftsRanked = topGiftCounts
+      .map((count, idx) => ({
+        name: SPIRITUAL_GIFT_NAMES[idx],
+        count,
+        avg: giftScoreN[idx] ? Math.round((giftScoreSum[idx] / giftScoreN[idx]) * 10) / 10 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+    const top10Gifts = giftsRanked.slice(0, 10);
+
+    const allMonths = Array.from(new Set([
+      ...Object.keys(monthlySignups), ...Object.keys(monthlyCompletions)
+    ])).sort();
+
+    const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discover More — Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; background: #F5F1E8; line-height: 1.5; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+  header { text-align: center; padding: 2rem 1rem 1.5rem; background: #FFFFFF; border-radius: 16px; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; overflow: hidden; }
+  header::after { content:""; display: block; height: 4px; background: linear-gradient(90deg, #4CAF50 0%, #FFA34D 100%); position: absolute; bottom: 0; left: 0; right: 0; }
+  header img { width: 220px; height: auto; display: block; margin: 0 auto 0.5rem; }
+  header h1 { margin: 0.5rem 0 0.25rem; color: #2E7D32; font-size: 1.85rem; letter-spacing: -0.01em; }
+  header .sub { color: #5a6478; font-size: 0.9rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin-bottom: 1.5rem; }
+  .kpi { background: #FFFFFF; border-radius: 12px; padding: 1.1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; overflow: hidden; }
+  .kpi::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent, #4CAF50); }
+  .kpi .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: #757575; font-weight: 600; }
+  .kpi .val { font-size: 2rem; font-weight: 700; color: #1B4B5A; line-height: 1.1; margin-top: 0.3rem; }
+  .kpi .unit { font-size: 0.95rem; color: #5a6478; font-weight: 500; margin-left: 0.2em; }
+  .kpi.green { --accent: #4CAF50; }
+  .kpi.orange { --accent: #FFA34D; }
+  .kpi.teal { --accent: #1B4B5A; }
+  .kpi.tan { --accent: #D4B896; }
+  .kpi.brown { --accent: #A67C52; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 1.25rem; }
+  .card { background: #FFFFFF; border-radius: 12px; padding: 1.4rem 1.4rem 1.6rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #2E7D32; font-weight: 700; padding-bottom: 0.6rem; border-bottom: 2px solid #D4B896; letter-spacing: 0.02em; }
+  .card .sub { font-size: 0.8rem; color: #757575; margin: -0.6rem 0 0.9rem; font-weight: 400; }
+  .chart-box { position: relative; height: 320px; }
+  .chart-box.tall { height: 420px; }
+  footer { margin-top: 2rem; text-align: center; color: #757575; font-size: 0.78rem; }
+  .tag { display: inline-block; background: #F5F1E8; color: #1B4B5A; padding: 0.18em 0.6em; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+  @media (max-width: 600px) {
+    .wrap { padding: 1.25rem 0.75rem 2rem; }
+    .grid { grid-template-columns: 1fr; }
+    .kpi .val { font-size: 1.65rem; }
+  }
+</style></head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="https://discovermore.app/DiscoverMoreLogo.png" alt="Discover More">
+    <h1>Discover More — Analytics</h1>
+    <div class="sub">Anchor Church · DISC + Spiritual Gifts surveys · Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC</div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi green"><div class="label">Total Signups</div><div class="val">${total.toLocaleString()}</div></div>
+    <div class="kpi orange"><div class="label">Completed</div><div class="val">${completed.toLocaleString()}</div></div>
+    <div class="kpi teal"><div class="label">Completion Rate</div><div class="val">${completionRate}<span class="unit">%</span></div></div>
+    <div class="kpi tan"><div class="label">Avg Days to Complete</div><div class="val">${avgDays}<span class="unit">d</span></div></div>
+    <div class="kpi brown"><div class="label">Most Common DISC</div><div class="val">${topDisc}</div></div>
+    <div class="kpi green"><div class="label">Most Common Top Gift</div><div class="val" style="font-size:1.3rem;line-height:1.25;">${topGiftName}</div></div>
+  </section>
+
+  <section class="grid">
+
+    <div class="card">
+      <h2>DISC Personality Distribution</h2>
+      <div class="sub">Among ${completed} completed surveys, by primary type (highest letter)</div>
+      <div class="chart-box"><canvas id="discChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Top 10 Spiritual Gifts</h2>
+      <div class="sub">How often each gift is someone's #1 highest-scoring gift</div>
+      <div class="chart-box tall"><canvas id="giftsChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Signups vs Completions by Month</h2>
+      <div class="sub">Monthly trend across all available data</div>
+      <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Average Score per Gift</h2>
+      <div class="sub">Mean score (3-9) across all completed surveys, all 24 gifts</div>
+      <div class="chart-box tall"><canvas id="giftAvgChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Platform Breakdown</h2>
+      <div class="sub">Where users created their account</div>
+      <div class="chart-box"><canvas id="platformChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Engagement Flags</h2>
+      <div class="sub">Counts across the full population (admin-set tags on each user)</div>
+      <div class="chart-box"><canvas id="activityChart"></canvas></div>
+    </div>
+
+  </section>
+
+  <footer>Project <code>dm-auth-65cc4</code> · ${snapshot.size} records scanned · Endpoint: <code>dmAnalyticsReport</code></footer>
+</div>
+
+<script>
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.color = "#1A1A1A";
+  Chart.defaults.plugins.legend.labels.font = { size: 12, weight: 500 };
+
+  const PALETTE = ['#4CAF50','#FFA34D','#1B4B5A','#A67C52','#D4B896','#2E7D32','#FF9800','#5C8A92','#7CB342','#FFB74D'];
+
+  // DISC donut
+  new Chart(document.getElementById('discChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['D — Dominant', 'I — Influential', 'S — Steady', 'C — Conscientious'],
+      datasets: [{
+        data: [${disc.D}, ${disc.I}, ${disc.S}, ${disc.C}],
+        backgroundColor: ['#D04C4C', '#FFC107', '#4CAF50', '#1976D2'],
+        borderWidth: 2, borderColor: '#fff',
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'right' } } }
+  });
+
+  // Top 10 gifts horizontal bar
+  new Chart(document.getElementById('giftsChart'), {
+    type: 'bar',
+    data: {
+      labels: ${JSON.stringify(top10Gifts.map(g => g.name))},
+      datasets: [{
+        data: ${JSON.stringify(top10Gifts.map(g => g.count))},
+        backgroundColor: '#4CAF50', borderRadius: 4,
+      }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.parsed.x + ' users' } } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  // Monthly stacked bar — signups + completions
+  const months = ${JSON.stringify(allMonths)};
+  const signupsByMonth = ${JSON.stringify(allMonths.map(m => monthlySignups[m] || 0))};
+  const completionsByMonth = ${JSON.stringify(allMonths.map(m => monthlyCompletions[m] || 0))};
+  new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        { label: 'Signups', data: signupsByMonth, backgroundColor: '#1B4B5A', borderRadius: 3 },
+        { label: 'Completions', data: completionsByMonth, backgroundColor: '#FFA34D', borderRadius: 3 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  // Average score per gift
+  const giftAvgLabels = ${JSON.stringify(SPIRITUAL_GIFT_NAMES)};
+  const giftAvgData = ${JSON.stringify(giftScoreSum.map((s, i) => giftScoreN[i] ? Math.round((s / giftScoreN[i]) * 10) / 10 : 0))};
+  new Chart(document.getElementById('giftAvgChart'), {
+    type: 'bar',
+    data: {
+      labels: giftAvgLabels,
+      datasets: [{ data: giftAvgData, backgroundColor: '#A67C52', borderRadius: 3 }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, max: 9, ticks: { stepSize: 1 } } } }
+  });
+
+  // Platform donut
+  const platformEntries = Object.entries(${JSON.stringify(platformCounts)});
+  new Chart(document.getElementById('platformChart'), {
+    type: 'doughnut',
+    data: {
+      labels: platformEntries.map(e => e[0]),
+      datasets: [{
+        data: platformEntries.map(e => e[1]),
+        backgroundColor: PALETTE,
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'right' } } }
+  });
+
+  // Activity flags
+  const a = ${JSON.stringify(activity)};
+  new Chart(document.getElementById('activityChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Currently Serving', 'Following Up', 'Attended W1', 'Attended W2', 'Swag Bag', 'Not Serving'],
+      datasets: [{
+        data: [a.serving, a.follow, a.w1, a.w2, a.swag, a.noServe],
+        backgroundColor: ['#4CAF50','#FFA34D','#1B4B5A','#5C8A92','#A67C52','#D04C4C'],
+        borderRadius: 4
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+</script>
+</body></html>`;
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
+  });
+
 // Token-to-session exchange. Called by app.js when ?resume=TOKEN is in the URL.
 exports.dmGetResumeSession = functions
   .region("us-central1")
