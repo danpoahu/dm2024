@@ -555,7 +555,7 @@ exports.dmSendResumeEmailToOne = functions
     timeoutSeconds: 60,
   })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
     const targetEmail = (req.query.email || "").toLowerCase();
     if (!targetEmail) return res.status(400).json({ error: "Need ?email=" });
 
@@ -590,7 +590,7 @@ exports.dmEligibilityReport = functions
   .region("us-central1")
   .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
 
     const db = admin.firestore();
     const now = Date.now();
@@ -772,7 +772,7 @@ exports.dmEmailLogReport = functions
   .region("us-central1")
   .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
 
     const db = admin.firestore();
     const baseUrl = "https://us-central1-dm-auth-65cc4.cloudfunctions.net";
@@ -949,7 +949,7 @@ exports.dmViewSentEmail = functions
   .region("us-central1")
   .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 5, timeoutSeconds: 30 })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
     const db = admin.firestore();
 
     // Preferred: stored html from emailLog (?logId=XXX) — exact bytes that were sent.
@@ -992,7 +992,7 @@ exports.dmAdminResend = functions
     timeoutSeconds: 30,
   })
   .https.onRequest(async (req, res) => {
-    if (req.query.key !== process.env.DM_ADMIN_KEY) return res.status(403).send("Forbidden");
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
     const docId = req.query.docId;
     if (!docId || typeof docId !== "string") return res.status(400).json({ error: "Need docId" });
 
