@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="robots" content="noindex,nofollow">
+<title>Discover More — Survey Results</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin: 0; padding: 0; background: #F5F1E8; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .header { padding: 14px 20px 6px; }
+  .header h1 { margin: 0 0 8px; color: #2E7D32; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; }
+  .nav-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 12px 10px; }
+  .nav-btn { background: #F5F1E8; border: 1px solid rgba(0,0,0,0.18); color: #1B4B5A; font-size: 1rem; font-weight: 700; width: 36px; height: 32px; border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
+  .nav-btn:hover { background: #ece6d5; }
+  .month-input { background: #fff; border: 1px solid rgba(0,0,0,0.18); border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 0.95rem; min-width: 130px; }
+  .people-count { color: #757575; font-size: 0.95rem; }
+  .scroller { overflow-x: auto; overflow-y: visible; padding: 6px 12px 24px; }
+  .panel { min-width: max-content; padding-top: 6px; }
+  /* DISC section */
+  .disc-grid { display: grid; grid-template-columns: 220px 54px 64px 64px 64px 64px; column-gap: 10px; row-gap: 0; align-items: center; }
+  .disc-grid .h { font-weight: 700; padding: 6px 0; }
+  .disc-grid .h.name { color: #000; }
+  .disc-grid .h.disc { color: #FF9800; }
+  .disc-grid .h.top  { color: #000; }
+  .disc-row { display: contents; }
+  .disc-row .name { color: #000; font-weight: 700; padding: 4px 0; cursor: default; }
+  .disc-row .top { padding: 4px 0; font-weight: 600; }
+  .disc-row .top .first { color: #2E7D32; }
+  .disc-row .top .slash { color: #000; }
+  .disc-row .top .second { color: #FF9800; }
+  .disc-row .val { color: #000; padding: 4px 0; font-variant-numeric: tabular-nums; }
+  .disc-row + .row-rule { grid-column: 1 / -1; height: 1px; background: rgba(0,0,0,0.08); }
+  .accent-rule { height: 2px; background: #FF9800; margin: 14px 0; }
+  /* SG section */
+  .sg-grid { display: grid; grid-template-columns: 220px repeat(24, 36px); column-gap: 0; row-gap: 0; align-items: stretch; }
+  .sg-grid .h, .sg-grid .cell { height: 22px; display: flex; align-items: center; box-sizing: border-box; border-right: 0.5px solid rgba(0,0,0,0.15); }
+  .sg-grid .h { font-size: 10px; font-weight: 800; color: #FF9800; }
+  .sg-grid .h.name { padding-left: 0; }
+  .sg-grid .h.col { justify-content: center; }
+  .sg-grid .cell.name { color: #000; font-weight: 600; font-size: 0.92rem; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sg-grid .cell.col { justify-content: center; font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sg-grid .cell.col.high { color: #2E7D32; }
+  .sg-grid .cell.col.low  { color: #000; }
+  .sg-grid .row-rule { grid-column: 1 / -1; height: 1px; background: rgba(0,0,0,0.08); border: 0; }
+  .empty-note { color: #757575; padding: 1.5rem; text-align: center; font-style: italic; }
+  .err { color: #d32f2f; padding: 1rem; font-weight: 600; }
+  .loading { padding: 1rem; color: #5a6478; }
+  @media print { .scroller { overflow: visible; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Survey Results</h1>
+</div>
+
+<div class="nav-row">
+  <button class="nav-btn" id="prev-btn" aria-label="Previous month">&#9664;</button>
+  <input type="month" id="month-input" class="month-input">
+  <button class="nav-btn" id="next-btn" aria-label="Next month">&#9654;</button>
+  <span class="people-count" id="people-count">(loading…)</span>
+</div>
+
+<div class="scroller">
+  <div class="panel" id="panel">
+    <div class="loading">Loading…</div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBNqa6JHHe2yuriloiCA_yjzzBAf0KQmbY",
+  authDomain: "dm-auth-65cc4.firebaseapp.com",
+  projectId: "dm-auth-65cc4",
+  storageBucket: "dm-auth-65cc4.appspot.com",
+  messagingSenderId: "331110328467",
+  appId: "1:331110328467:web:060b48abefdff486330566"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const GIFT_SHORT = ["Admin","Apost","Craft","Discern","Evang","Exhor","Faith","Giving","Healing","Helps","Hospit","Inter","Knowl","Leader","Mercy","Miric","Mission","Music","Pastor","Proph","Serve","Teach","Tongue","Wize"];
+const GIFT_FULL = ["Administration","Apostleship","Craftsmanship","Discernment","Evangelism","Exhortation","Faith","Giving","Healing","Helps","Hospitality","Intercession","Knowledge","Leadership","Mercy","Miracles","Missionary","Music/Worship","Pastor/Shepherd","Prophecy","Service","Teaching","Tongues (and Interpretation)","Wisdom"];
+
+let allDocs = []; // cached
+let currentMonth = monthFromDate(new Date());
+
+function monthFromDate(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+function monthBounds(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+  const end = new Date(y, m, 1, 0, 0, 0, 0);
+  return [start, end];
+}
+function shiftMonth(monthStr, delta) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return monthFromDate(d);
+}
+function truncate(s, n) {
+  s = String(s || "");
+  if (s.length <= n) return s;
+  return s.slice(0, n - 1) + "…";
+}
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function discTotals(d) {
+  const sum = (p) => [1,2,3,4,5].reduce((acc, i) => acc + (Number(d[p + i]) || 0), 0);
+  return { D: sum("D"), I: sum("I"), S: sum("S"), C: sum("C") };
+}
+function topTwo(t) {
+  const pairs = [["D", t.D], ["I", t.I], ["S", t.S], ["C", t.C]].sort((a, b) => b[1] - a[1]);
+  if (!pairs[0] || pairs[0][1] === 0) return [null, null];
+  const top = pairs[0][0];
+  const second = pairs.slice(1).find(p => p[1] < pairs[0][1]);
+  return [top, second ? second[0] : null];
+}
+function sgTotal(d, i) {
+  const v1 = Number(d["ZZ" + (i + 1)]) || 0;
+  const v2 = Number(d["ZZ" + (i + 25)]) || 0;
+  const v3 = Number(d["ZZ" + (i + 49)]) || 0;
+  return Math.min(v1 + v2 + v3, 9);
+}
+
+async function loadAll() {
+  const snap = await getDocs(collection(db, "results"));
+  allDocs = [];
+  snap.forEach(docSnap => {
+    const d = docSnap.data();
+    let createdMs = 0;
+    if (d.created) {
+      if (typeof d.created.toMillis === "function") createdMs = d.created.toMillis();
+      else if (typeof d.created === "string") {
+        const t = Date.parse(d.created);
+        if (!isNaN(t)) createdMs = t;
+      } else if (d.created.seconds) createdMs = d.created.seconds * 1000;
+    }
+    allDocs.push({
+      id: docSnap.id,
+      name: d.NAME || "No Name",
+      createdMs,
+      raw: d,
+    });
+  });
+  render();
+}
+
+function render() {
+  const [start, end] = monthBounds(currentMonth);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  const filtered = allDocs
+    .filter(u => u.createdMs >= startMs && u.createdMs < endMs)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+
+  document.getElementById("people-count").textContent = "(" + filtered.length + " " + (filtered.length === 1 ? "person" : "people") + ")";
+  const panel = document.getElementById("panel");
+
+  if (filtered.length === 0) {
+    panel.innerHTML = '<div class="empty-note">No signups in this month. Use the chevrons or the date picker to navigate.</div>';
+    return;
+  }
+
+  let html = '';
+
+  // DISC table
+  html += '<div class="disc-grid">';
+  html += '<div class="h name">Name</div>';
+  html += '<div class="h top">Top</div>';
+  html += '<div class="h disc">D</div><div class="h disc">I</div><div class="h disc">S</div><div class="h disc">C</div>';
+  for (const u of filtered) {
+    const t = discTotals(u.raw);
+    const [first, second] = topTwo(t);
+    html += '<div class="disc-row">';
+    html += '<div class="name">' + escapeHtml(truncate(u.name, 28)) + '</div>';
+    html += '<div class="top">';
+    if (first)  html += '<span class="first">' + escapeHtml(first) + '</span>';
+    if (second) html += '<span class="slash">/</span><span class="second">' + escapeHtml(second) + '</span>';
+    html += '</div>';
+    html += '<div class="val">D=' + t.D + '</div>';
+    html += '<div class="val">I=' + t.I + '</div>';
+    html += '<div class="val">S=' + t.S + '</div>';
+    html += '<div class="val">C=' + t.C + '</div>';
+    html += '</div>';
+    html += '<div class="row-rule"></div>';
+  }
+  html += '</div>';
+
+  html += '<div class="accent-rule"></div>';
+
+  // SG table
+  html += '<div class="sg-grid">';
+  html += '<div class="h name">Name</div>';
+  for (let i = 0; i < 24; i++) {
+    html += '<div class="h col" title="' + escapeHtml(GIFT_FULL[i]) + '">' + escapeHtml(GIFT_SHORT[i]) + '</div>';
+  }
+  for (const u of filtered) {
+    html += '<div class="cell name">' + escapeHtml(truncate(u.name, 22)) + '</div>';
+    for (let i = 0; i < 24; i++) {
+      const total = sgTotal(u.raw, i);
+      const cls = (total >= 8) ? 'high' : 'low';
+      html += '<div class="cell col ' + cls + '" title="' + escapeHtml(GIFT_FULL[i]) + ' = ' + total + '">' + total + '</div>';
+    }
+    html += '<div class="row-rule"></div>';
+  }
+  html += '</div>';
+
+  panel.innerHTML = html;
+}
+
+document.getElementById("month-input").value = currentMonth;
+document.getElementById("month-input").addEventListener("change", (e) => {
+  currentMonth = e.target.value || monthFromDate(new Date());
+  render();
+});
+document.getElementById("prev-btn").addEventListener("click", () => {
+  currentMonth = shiftMonth(currentMonth, -1);
+  document.getElementById("month-input").value = currentMonth;
+  render();
+});
+document.getElementById("next-btn").addEventListener("click", () => {
+  currentMonth = shiftMonth(currentMonth, +1);
+  document.getElementById("month-input").value = currentMonth;
+  render();
+});
+
+loadAll().catch(err => {
+  console.error(err);
+  document.getElementById("panel").innerHTML = '<div class="err">Couldn\'t load survey data. (' + escapeHtml(err.message || err) + ')</div>';
+});
+</script>
+
+</body>
+</html>
