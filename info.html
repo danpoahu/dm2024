@@ -23,41 +23,97 @@
   .card .desc { color: #4a5560; font-size: 0.88rem; line-height: 1.4; }
   .card .arrow { color: #FF9800; font-weight: 800; margin-top: 12px; font-size: 0.85rem; letter-spacing: 0.04em; }
   .footer { color: #9aa0a6; font-size: 0.78rem; margin-top: 36px; text-align: center; }
+  .gate { max-width: 360px; margin: 80px auto; padding: 28px 24px; background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,0.06); text-align: center; }
+  .gate img { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 14px; }
+  .gate h1 { margin: 0 0 4px; color: #2E7D32; font-size: 1.4rem; font-weight: 800; }
+  .gate .sub { color: #757575; font-size: 0.88rem; margin-bottom: 18px; }
+  .gate input { width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.18); border-radius: 8px; font-size: 1rem; font-family: inherit; margin-bottom: 12px; }
+  .gate input:focus { outline: 2px solid #FF9800; outline-offset: 1px; border-color: #FF9800; }
+  .gate button { width: 100%; padding: 10px 12px; background: #2E7D32; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  .gate button:hover { background: #246928; }
+  .gate .err { color: #d32f2f; font-size: 0.85rem; margin-top: 10px; min-height: 1.2em; }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <div class="brand">
-    <img src="DiscoverMoreLogo.png" alt="Discover More logo">
-    <div>
-      <h1>Discover More</h1>
-      <div class="sub">Stats home</div>
+<div id="content" style="display:none;">
+  <div class="wrap">
+    <div class="brand">
+      <img src="DiscoverMoreLogo.png" alt="Discover More logo">
+      <div>
+        <h1>Discover More</h1>
+        <div class="sub">Stats home</div>
+      </div>
     </div>
-  </div>
-  <div class="accent-rule"></div>
+    <div class="accent-rule"></div>
 
-  <h2>Reports</h2>
-  <div class="grid">
-    <a class="card" href="results.html">
-      <div class="label">Survey Results</div>
-      <div class="desc">DISC + Spiritual Gifts results by month, filterable.</div>
-      <div class="arrow">OPEN &rarr;</div>
-    </a>
-    <a class="card" href="analytics.html">
-      <div class="label">Analytics</div>
-      <div class="desc">Engagement and usage metrics across the survey.</div>
-      <div class="arrow">OPEN &rarr;</div>
-    </a>
-    <a class="card" href="email.html">
-      <div class="label">Email Log</div>
-      <div class="desc">Per-send audit of every results email delivered.</div>
-      <div class="arrow">OPEN &rarr;</div>
-    </a>
-  </div>
+    <h2>Reports</h2>
+    <div class="grid">
+      <a class="card" href="results.html">
+        <div class="label">Survey Results</div>
+        <div class="desc">DISC + Spiritual Gifts results by month, filterable.</div>
+        <div class="arrow">OPEN &rarr;</div>
+      </a>
+      <a class="card" href="analytics.html">
+        <div class="label">Analytics</div>
+        <div class="desc">Engagement and usage metrics across the survey.</div>
+        <div class="arrow">OPEN &rarr;</div>
+      </a>
+      <a class="card" href="email.html">
+        <div class="label">Email Log</div>
+        <div class="desc">Per-send audit of every results email delivered.</div>
+        <div class="arrow">OPEN &rarr;</div>
+      </a>
+    </div>
 
-  <div class="footer">discovermore.app</div>
+    <div class="footer">discovermore.app</div>
+  </div>
 </div>
+
+<div id="gate" class="gate" style="display:none;">
+  <img src="DiscoverMoreLogo.png" alt="Discover More logo">
+  <h1>Discover More</h1>
+  <div class="sub">Enter password to view stats</div>
+  <form id="gateForm" autocomplete="off">
+    <input id="gatePwd" type="password" placeholder="Password" autocomplete="off" autofocus>
+    <button type="submit">Unlock</button>
+    <div id="gateErr" class="err"></div>
+  </form>
+</div>
+
+<script>
+(async function() {
+  const PWD_HASH = '7af3b634f610a9de2c73717d3389fdbdb6613da308247614b540ec585e097d11';
+  const SESSION_KEY = 'dm-stats-auth';
+  const gate = document.getElementById('gate');
+  const content = document.getElementById('content');
+  const form = document.getElementById('gateForm');
+  const pwd = document.getElementById('gatePwd');
+  const err = document.getElementById('gateErr');
+
+  async function sha256(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  function reveal() { gate.style.display = 'none'; content.style.display = ''; }
+
+  if (sessionStorage.getItem(SESSION_KEY) === '1') { reveal(); return; }
+
+  gate.style.display = '';
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    err.textContent = '';
+    const h = await sha256(pwd.value);
+    if (h === PWD_HASH) {
+      sessionStorage.setItem(SESSION_KEY, '1');
+      reveal();
+    } else {
+      err.textContent = 'Incorrect.';
+      pwd.value = ''; pwd.focus();
+    }
+  });
+})();
+</script>
 
 </body>
 </html>

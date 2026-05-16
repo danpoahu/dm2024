@@ -15,17 +15,87 @@
   .topbar h1 { margin: 0; color: #2E7D32; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; flex: 1; }
   .topbar .accent { width: 18px; height: 3px; background: #FF9800; border-radius: 2px; }
   iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  .gate { max-width: 360px; margin: 80px auto; padding: 28px 24px; background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,0.06); text-align: center; }
+  .gate img { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 14px; }
+  .gate h1 { margin: 0 0 4px; color: #2E7D32; font-size: 1.4rem; font-weight: 800; }
+  .gate .sub { color: #757575; font-size: 0.88rem; margin-bottom: 18px; }
+  .gate input { width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.18); border-radius: 8px; font-size: 1rem; font-family: inherit; margin-bottom: 12px; }
+  .gate input:focus { outline: 2px solid #FF9800; outline-offset: 1px; border-color: #FF9800; }
+  .gate button { width: 100%; padding: 10px 12px; background: #2E7D32; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  .gate button:hover { background: #246928; }
+  .gate .err { color: #d32f2f; font-size: 0.85rem; margin-top: 10px; min-height: 1.2em; }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <a class="back" href="info.html">&larr; Stats</a>
-  <span class="accent"></span>
-  <h1>Analytics</h1>
+<div id="content" style="display:none;flex:1;flex-direction:column;width:100%;">
+  <div class="topbar">
+    <a class="back" href="info.html">&larr; Stats</a>
+    <span class="accent"></span>
+    <h1>Analytics</h1>
+  </div>
+  <div id="frameHost" style="flex:1;display:flex;"></div>
 </div>
 
-<iframe src="https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmAnalyticsReport?key=u4eGyX5NVXrZ06ieoATHYQMUuLbLcZym" title="Analytics Report"></iframe>
+<div id="gate" class="gate" style="display:none;">
+  <img src="DiscoverMoreLogo.png" alt="Discover More logo">
+  <h1>Discover More</h1>
+  <div class="sub">Enter password to view stats</div>
+  <form id="gateForm" autocomplete="off">
+    <input id="gatePwd" type="password" placeholder="Password" autocomplete="off" autofocus>
+    <button type="submit">Unlock</button>
+    <div id="gateErr" class="err"></div>
+  </form>
+</div>
+
+<script>
+(async function() {
+  const PWD_HASH = '7af3b634f610a9de2c73717d3389fdbdb6613da308247614b540ec585e097d11';
+  const SESSION_KEY = 'dm-stats-auth';
+  // Pieces assembled at unlock time so the iframe URL never appears in
+  // page source until after the password check passes.
+  const FN_HOST = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net';
+  const FN_NAME = 'dmAnalyticsReport';
+  const ADMIN_KEY = 'u4eGyX5NVXrZ06ieoATHYQMUuLbLcZym';
+
+  const gate = document.getElementById('gate');
+  const content = document.getElementById('content');
+  const host = document.getElementById('frameHost');
+  const form = document.getElementById('gateForm');
+  const pwd = document.getElementById('gatePwd');
+  const err = document.getElementById('gateErr');
+
+  async function sha256(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  function reveal() {
+    gate.style.display = 'none';
+    content.style.display = 'flex';
+    const f = document.createElement('iframe');
+    f.src = FN_HOST + '/' + FN_NAME + '?key=' + encodeURIComponent(ADMIN_KEY);
+    f.title = 'Analytics Report';
+    f.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
+    host.appendChild(f);
+  }
+
+  if (sessionStorage.getItem(SESSION_KEY) === '1') { reveal(); return; }
+
+  gate.style.display = '';
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    err.textContent = '';
+    const h = await sha256(pwd.value);
+    if (h === PWD_HASH) {
+      sessionStorage.setItem(SESSION_KEY, '1');
+      reveal();
+    } else {
+      err.textContent = 'Incorrect.';
+      pwd.value = ''; pwd.focus();
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
