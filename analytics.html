@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="robots" content="noindex,nofollow">
+<title>Discover More — Analytics</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin: 0; padding: 0; background: #F5F1E8; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; height: 100%; }
+  body { display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #F5F1E8; border-bottom: 1px solid rgba(0,0,0,0.08); }
+  .topbar a.back { text-decoration: none; color: #1B4B5A; font-weight: 700; font-size: 0.92rem; }
+  .topbar a.back:hover { color: #2E7D32; }
+  .topbar h1 { margin: 0; color: #2E7D32; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; flex: 1; }
+  .topbar .accent { width: 18px; height: 3px; background: #FF9800; border-radius: 2px; }
+  iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="back" href="info.html">&larr; Stats</a>
+  <span class="accent"></span>
+  <h1>Analytics</h1>
+</div>
+
+<iframe src="https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmAnalyticsReport?key=u4eGyX5NVXrZ06ieoATHYQMUuLbLcZym" title="Analytics Report"></iframe>
+
+</body>
+</html>

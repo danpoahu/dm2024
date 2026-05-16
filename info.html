@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="robots" content="noindex,nofollow">
+<title>Discover More — Stats</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin: 0; padding: 0; background: #F5F1E8; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 36px 20px 60px; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+  .brand img { width: 56px; height: 56px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .brand h1 { margin: 0; color: #2E7D32; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.01em; }
+  .brand .sub { color: #757575; font-size: 0.92rem; margin-top: 2px; }
+  .accent-rule { height: 3px; background: #FF9800; border-radius: 2px; margin: 0 0 28px; }
+  h2 { color: #1B4B5A; font-size: 1.05rem; font-weight: 700; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .card { display: block; padding: 22px 20px; background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; text-decoration: none; color: inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); border-color: rgba(46,125,50,0.4); }
+  .card .label { color: #2E7D32; font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
+  .card .desc { color: #4a5560; font-size: 0.88rem; line-height: 1.4; }
+  .card .arrow { color: #FF9800; font-weight: 800; margin-top: 12px; font-size: 0.85rem; letter-spacing: 0.04em; }
+  .footer { color: #9aa0a6; font-size: 0.78rem; margin-top: 36px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand">
+    <img src="DiscoverMoreLogo.png" alt="Discover More logo">
+    <div>
+      <h1>Discover More</h1>
+      <div class="sub">Stats home</div>
+    </div>
+  </div>
+  <div class="accent-rule"></div>
+
+  <h2>Reports</h2>
+  <div class="grid">
+    <a class="card" href="results.html">
+      <div class="label">Survey Results</div>
+      <div class="desc">DISC + Spiritual Gifts results by month, filterable.</div>
+      <div class="arrow">OPEN &rarr;</div>
+    </a>
+    <a class="card" href="analytics.html">
+      <div class="label">Analytics</div>
+      <div class="desc">Engagement and usage metrics across the survey.</div>
+      <div class="arrow">OPEN &rarr;</div>
+    </a>
+    <a class="card" href="email.html">
+      <div class="label">Email Log</div>
+      <div class="desc">Per-send audit of every results email delivered.</div>
+      <div class="arrow">OPEN &rarr;</div>
+    </a>
+  </div>
+
+  <div class="footer">discovermore.app</div>
+</div>
+
+</body>
+</html>
