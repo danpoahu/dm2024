@@ -9,10 +9,9 @@
   *,*::before,*::after { box-sizing: border-box; }
   html,body { margin: 0; padding: 0; background: #F5F1E8; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
   .wrap { max-width: 720px; margin: 0 auto; padding: 36px 20px 60px; }
-  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-  .brand img { width: 56px; height: 56px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-  .brand h1 { margin: 0; color: #2E7D32; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.01em; }
-  .brand .sub { color: #757575; font-size: 0.92rem; margin-top: 2px; }
+  .brand { margin-bottom: 24px; }
+  .brand img { display: block; height: 72px; width: auto; max-width: 100%; }
+  .brand .sub { color: #757575; font-size: 0.92rem; margin-top: 8px; }
   .accent-rule { height: 3px; background: #FF9800; border-radius: 2px; margin: 0 0 28px; }
   h2 { color: #1B4B5A; font-size: 1.05rem; font-weight: 700; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase; }
   .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
@@ -24,8 +23,7 @@
   .card .arrow { color: #FF9800; font-weight: 800; margin-top: 12px; font-size: 0.85rem; letter-spacing: 0.04em; }
   .footer { color: #9aa0a6; font-size: 0.78rem; margin-top: 36px; text-align: center; }
   .gate { max-width: 360px; margin: 80px auto; padding: 28px 24px; background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,0.06); text-align: center; }
-  .gate img { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 14px; }
-  .gate h1 { margin: 0 0 4px; color: #2E7D32; font-size: 1.4rem; font-weight: 800; }
+  .gate img { display: block; height: 64px; width: auto; max-width: 90%; margin: 0 auto 16px; }
   .gate .sub { color: #757575; font-size: 0.88rem; margin-bottom: 18px; }
   .gate input { width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.18); border-radius: 8px; font-size: 1rem; font-family: inherit; margin-bottom: 12px; }
   .gate input:focus { outline: 2px solid #FF9800; outline-offset: 1px; border-color: #FF9800; }
@@ -39,11 +37,8 @@
 <div id="content" style="display:none;">
   <div class="wrap">
     <div class="brand">
-      <img src="DiscoverMoreLogo.png" alt="Discover More logo">
-      <div>
-        <h1>Discover More</h1>
-        <div class="sub">Stats home</div>
-      </div>
+      <img src="DiscoverMoreLogo.png" alt="Anchor Church — Discover More">
+      <div class="sub">Stats home</div>
     </div>
     <div class="accent-rule"></div>
 
@@ -71,8 +66,7 @@
 </div>
 
 <div id="gate" class="gate" style="display:none;">
-  <img src="DiscoverMoreLogo.png" alt="Discover More logo">
-  <h1>Discover More</h1>
+  <img src="DiscoverMoreLogo.png" alt="Anchor Church — Discover More">
   <div class="sub">Enter password to view stats</div>
   <form id="gateForm" autocomplete="off">
     <input id="gatePwd" type="password" placeholder="Password" autocomplete="off" autofocus>
