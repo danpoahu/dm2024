@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=34';
-import { renderDashboard } from './dashboard.js?v=34';
-import { renderPersonality } from './personality.js?v=34';
-import { renderSGSurvey } from './sgsurvey.js?v=34';
-import { renderResults } from './results.js?v=34';
-import { renderProfile } from './profile.js?v=34';
-import { renderResources } from './resources.js?v=34';
+import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=35';
+import { renderDashboard } from './dashboard.js?v=35';
+import { renderPersonality } from './personality.js?v=35';
+import { renderSGSurvey } from './sgsurvey.js?v=35';
+import { renderResults } from './results.js?v=35';
+import { renderProfile } from './profile.js?v=35';
+import { renderResources } from './resources.js?v=35';
 
 const appEl = document.getElementById('app');
 
@@ -184,13 +184,17 @@ function showWelcomePopup() {
       <div class="login-card">
         <h2>Welcome</h2>
         <p style="font-size:.9rem;color:#666;margin-bottom:16px;">Please enter your information to get started.</p>
+        <div style="background:rgba(76,175,80,0.10);border:2px solid rgba(76,175,80,0.45);border-radius:14px;padding:12px 14px;margin-bottom:18px;text-align:left;">
+          <p style="margin:0 0 4px;font-weight:800;color:#2E7D32;font-size:.95rem;">Been here before?</p>
+          <p style="margin:0;color:#1A1A1A;font-size:.85rem;line-height:1.45;">Check your email for your personal link back to your results.</p>
+        </div>
         <input type="text" id="welcome-first" placeholder="First Name" autocomplete="given-name">
         <input type="text" id="welcome-last" placeholder="Last Name" autocomplete="family-name">
         <input type="email" id="welcome-email" placeholder="Email Address" autocomplete="email">
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v34</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v35</span>
     </div>
   `;
 

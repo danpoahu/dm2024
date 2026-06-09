@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=34';
-import { navigate, userData, setUserData, currentSession, setPendingDISC } from './app.js?v=34';
-import { DISC_QUESTIONS } from './data.js?v=34';
+import { db, doc, updateDoc } from './firebase-config.js?v=35';
+import { navigate, userData, setUserData, currentSession, setPendingDISC } from './app.js?v=35';
+import { DISC_QUESTIONS } from './data.js?v=35';
 
 export function renderPersonality(container) {
   const responses = new Array(20).fill(0);

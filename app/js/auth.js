@@ -1,7 +1,7 @@
 import {
   auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail, doc, setDoc, Timestamp
-} from './firebase-config.js?v=34';
+} from './firebase-config.js?v=35';
 
 export function renderLogin(container) {
   container.innerHTML = `
