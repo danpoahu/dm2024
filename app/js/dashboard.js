@@ -1,6 +1,6 @@
-import { db, doc, getDoc } from './firebase-config.js?v=36';
-import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=36';
-import { SPIRITUAL_GIFTS } from './data.js?v=36';
+import { db, doc, getDoc } from './firebase-config.js?v=37';
+import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=37';
+import { SPIRITUAL_GIFTS } from './data.js?v=37';
 
 const SEND_NOW_URL = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow';
 
@@ -95,7 +95,7 @@ function showTopGifts(data) {
     <div class="gifts-list-v2">` + top3.map(g => {
     const gift = SPIRITUAL_GIFTS[g.index];
     return `
-      <div class="gift-card-v2 gift-top">
+      <div class="gift-card-v2 gift-top expanded">
         <div class="gift-card-v2-header" onclick="this.parentElement.classList.toggle('expanded')">
           <span class="gift-card-v2-name">${gift.name}</span>
           <span class="gift-card-v2-score">Score: ${g.score}</span>
