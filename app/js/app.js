@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp } from './firebase-config.js?v=35';
-import { renderDashboard } from './dashboard.js?v=35';
-import { renderPersonality } from './personality.js?v=35';
-import { renderSGSurvey } from './sgsurvey.js?v=35';
-import { renderResults } from './results.js?v=35';
-import { renderProfile } from './profile.js?v=35';
-import { renderResources } from './resources.js?v=35';
+import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=36';
+import { renderDashboard } from './dashboard.js?v=36';
+import { renderPersonality } from './personality.js?v=36';
+import { renderSGSurvey } from './sgsurvey.js?v=36';
+import { renderResults } from './results.js?v=36';
+import { renderProfile } from './profile.js?v=36';
+import { renderResources } from './resources.js?v=36';
 
 const appEl = document.getElementById('app');
 
@@ -188,21 +188,124 @@ function showWelcomePopup() {
           <p style="margin:0 0 4px;font-weight:800;color:#2E7D32;font-size:.95rem;">Been here before?</p>
           <p style="margin:0;color:#1A1A1A;font-size:.85rem;line-height:1.45;">Check your email for your personal link back to your results.</p>
         </div>
+        <input type="email" id="welcome-email" placeholder="Email Address" autocomplete="email">
+        <div id="welcome-match" style="display:none;"></div>
         <input type="text" id="welcome-first" placeholder="First Name" autocomplete="given-name">
         <input type="text" id="welcome-last" placeholder="Last Name" autocomplete="family-name">
-        <input type="email" id="welcome-email" placeholder="Email Address" autocomplete="email">
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v35</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v36</span>
     </div>
   `;
 
+  // ----- Returning-user lookup -----
+  // When an email is entered, search existing results for that address and, if
+  // found, offer the matching name(s) so the person resumes their saved profile
+  // instead of creating a duplicate record.
+  let _matchDocs = [];
+  let _dismissedEmail = null; // an email the user explicitly said "not me" to
+
+  const _emailValid = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+  const _escape = (s) => String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function resumeIntoProfile(match) {
+    const d = match.data;
+    currentSession = { docId: match.docId, email: (d.EMAIL || '').toLowerCase(), name: d.NAME || '' };
+    userData = d;
+    navigate('/dashboard');
+    handleRoute();
+  }
+
+  // Returns true if a "Welcome back" panel was shown for this email.
+  async function checkExistingEmail(rawEmail) {
+    const email = (rawEmail || '').trim();
+    const panel = document.getElementById('welcome-match');
+    if (!panel) return false;
+    if (!_emailValid(email)) { panel.style.display = 'none'; panel.innerHTML = ''; return false; }
+
+    // Query both lowercased and as-typed to catch web (lowercased) and any
+    // app-created records that may have stored mixed case.
+    const wanted = [email.toLowerCase()];
+    if (email !== email.toLowerCase()) wanted.push(email);
+
+    let found = [];
+    try {
+      for (const e of wanted) {
+        const snap = await getDocs(query(collection(db, 'results'), where('EMAIL', '==', e)));
+        snap.forEach(d => found.push({ docId: d.id, data: d.data() }));
+      }
+    } catch (err) {
+      console.error('Email lookup failed:', err);
+      panel.style.display = 'none'; panel.innerHTML = '';
+      return false; // never block a new user on a lookup error
+    }
+
+    // De-dupe by docId; keep only records with a usable name.
+    const seen = new Set();
+    _matchDocs = found.filter(m => {
+      if (seen.has(m.docId)) return false;
+      seen.add(m.docId);
+      return m.data && (m.data.NAME || '').trim().length > 0;
+    });
+
+    if (_matchDocs.length === 0) { panel.style.display = 'none'; panel.innerHTML = ''; return false; }
+
+    const buttons = _matchDocs.map((m, i) =>
+      `<button type="button" class="welcome-match-pick" data-idx="${i}" style="display:block;width:100%;margin:6px 0;padding:11px 14px;border:none;border-radius:12px;background:#4CAF50;color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;">${_escape(m.data.NAME)}</button>`
+    ).join('');
+
+    panel.innerHTML = `
+      <div style="background:rgba(76,175,80,0.12);border:2px solid rgba(76,175,80,0.5);border-radius:14px;padding:14px;margin:4px 0 16px;text-align:left;">
+        <p style="margin:0 0 8px;font-weight:800;color:#2E7D32;font-size:1rem;">Welcome back! Is this you?</p>
+        ${buttons}
+        <button type="button" id="welcome-not-me" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:#A67C52;font-size:.85rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:6px;">No, that's not me &mdash; continue below</button>
+      </div>
+    `;
+    panel.style.display = 'block';
+
+    panel.querySelectorAll('.welcome-match-pick').forEach(b => {
+      b.addEventListener('click', () => {
+        const m = _matchDocs[Number(b.dataset.idx)];
+        if (m) resumeIntoProfile(m);
+      });
+    });
+    document.getElementById('welcome-not-me').addEventListener('click', () => {
+      _dismissedEmail = email.toLowerCase();
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      document.getElementById('welcome-first').focus();
+    });
+
+    return true;
+  }
+
+  // Run the lookup when the email field loses focus.
+  document.getElementById('welcome-email').addEventListener('blur', () => {
+    const email = document.getElementById('welcome-email').value.trim();
+    if (email && email.toLowerCase() !== _dismissedEmail) checkExistingEmail(email);
+  });
+  // Hide a stale match panel while the email is being edited.
+  document.getElementById('welcome-email').addEventListener('input', () => {
+    const panel = document.getElementById('welcome-match');
+    if (panel) panel.style.display = 'none';
+  });
+
   // Enter key support
-  ['welcome-first', 'welcome-last', 'welcome-email'].forEach(id => {
+  ['welcome-first', 'welcome-last'].forEach(id => {
     document.getElementById(id).addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('welcome-btn').click();
     });
+  });
+  document.getElementById('welcome-email').addEventListener('keydown', async e => {
+    if (e.key !== 'Enter') return;
+    const email = document.getElementById('welcome-email').value.trim();
+    if (email && email.toLowerCase() !== _dismissedEmail) {
+      const shown = await checkExistingEmail(email);
+      if (shown) return;
+    }
+    document.getElementById('welcome-btn').click();
   });
 
   document.getElementById('welcome-btn').addEventListener('click', async () => {
@@ -212,7 +315,27 @@ function showWelcomePopup() {
     const errorEl = document.getElementById('welcome-error');
     errorEl.textContent = '';
 
-    // Validate first name
+    // Validate email first (it's the first field \u2014 returning users start here)
+    if (!email) {
+      errorEl.textContent = 'Please enter your email address.';
+      document.getElementById('welcome-email').focus();
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(email)) {
+      errorEl.textContent = 'Please enter a valid email address.';
+      document.getElementById('welcome-email').focus();
+      return;
+    }
+
+    // Returning user? Offer to resume an existing profile before asking for a
+    // name, so they never create a duplicate.
+    if (email.toLowerCase() !== _dismissedEmail) {
+      const shown = await checkExistingEmail(email);
+      if (shown) return;
+    }
+
+    // Name is required \u2014 never optional.
     if (!first || first.length < 2) {
       errorEl.textContent = 'Please enter your first name.';
       document.getElementById('welcome-first').focus();
@@ -223,8 +346,6 @@ function showWelcomePopup() {
       document.getElementById('welcome-first').focus();
       return;
     }
-
-    // Validate last name
     if (!last || last.length < 2) {
       errorEl.textContent = 'Please enter your last name.';
       document.getElementById('welcome-last').focus();
@@ -233,19 +354,6 @@ function showWelcomePopup() {
     if (!/^[a-zA-Z\u00C0-\u024F\s'-]+$/.test(last)) {
       errorEl.textContent = 'Last name contains invalid characters.';
       document.getElementById('welcome-last').focus();
-      return;
-    }
-
-    // Validate email
-    if (!email) {
-      errorEl.textContent = 'Please enter your email address.';
-      document.getElementById('welcome-email').focus();
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!emailRegex.test(email)) {
-      errorEl.textContent = 'Please enter a valid email address.';
-      document.getElementById('welcome-email').focus();
       return;
     }
 

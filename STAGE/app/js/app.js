@@ -188,10 +188,10 @@ function showWelcomePopup() {
           <p style="margin:0 0 4px;font-weight:800;color:#2E7D32;font-size:.95rem;">Been here before?</p>
           <p style="margin:0;color:#1A1A1A;font-size:.85rem;line-height:1.45;">Check your email for your personal link back to your results.</p>
         </div>
-        <input type="text" id="welcome-first" placeholder="First Name" autocomplete="given-name">
-        <input type="text" id="welcome-last" placeholder="Last Name" autocomplete="family-name">
         <input type="email" id="welcome-email" placeholder="Email Address" autocomplete="email">
         <div id="welcome-match" style="display:none;"></div>
+        <input type="text" id="welcome-first" placeholder="First Name" autocomplete="given-name">
+        <input type="text" id="welcome-last" placeholder="Last Name" autocomplete="family-name">
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
@@ -315,31 +315,7 @@ function showWelcomePopup() {
     const errorEl = document.getElementById('welcome-error');
     errorEl.textContent = '';
 
-    // Validate first name
-    if (!first || first.length < 2) {
-      errorEl.textContent = 'Please enter your first name.';
-      document.getElementById('welcome-first').focus();
-      return;
-    }
-    if (!/^[a-zA-Z\u00C0-\u024F\s'-]+$/.test(first)) {
-      errorEl.textContent = 'First name contains invalid characters.';
-      document.getElementById('welcome-first').focus();
-      return;
-    }
-
-    // Validate last name
-    if (!last || last.length < 2) {
-      errorEl.textContent = 'Please enter your last name.';
-      document.getElementById('welcome-last').focus();
-      return;
-    }
-    if (!/^[a-zA-Z\u00C0-\u024F\s'-]+$/.test(last)) {
-      errorEl.textContent = 'Last name contains invalid characters.';
-      document.getElementById('welcome-last').focus();
-      return;
-    }
-
-    // Validate email
+    // Validate email first (it's the first field \u2014 returning users start here)
     if (!email) {
       errorEl.textContent = 'Please enter your email address.';
       document.getElementById('welcome-email').focus();
@@ -352,11 +328,33 @@ function showWelcomePopup() {
       return;
     }
 
-    // Safety net: if this email already has a profile (and they haven't said
-    // "not me"), show the resume panel instead of creating a duplicate.
+    // Returning user? Offer to resume an existing profile before asking for a
+    // name, so they never create a duplicate.
     if (email.toLowerCase() !== _dismissedEmail) {
       const shown = await checkExistingEmail(email);
       if (shown) return;
+    }
+
+    // Name is required \u2014 never optional.
+    if (!first || first.length < 2) {
+      errorEl.textContent = 'Please enter your first name.';
+      document.getElementById('welcome-first').focus();
+      return;
+    }
+    if (!/^[a-zA-Z\u00C0-\u024F\s'-]+$/.test(first)) {
+      errorEl.textContent = 'First name contains invalid characters.';
+      document.getElementById('welcome-first').focus();
+      return;
+    }
+    if (!last || last.length < 2) {
+      errorEl.textContent = 'Please enter your last name.';
+      document.getElementById('welcome-last').focus();
+      return;
+    }
+    if (!/^[a-zA-Z\u00C0-\u024F\s'-]+$/.test(last)) {
+      errorEl.textContent = 'Last name contains invalid characters.';
+      document.getElementById('welcome-last').focus();
+      return;
     }
 
     const btn = document.getElementById('welcome-btn');
