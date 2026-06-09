@@ -1,0 +1,23 @@
+{
+  "name": "Discover More - Anchor Church",
+  "short_name": "Discover More",
+  "description": "Discover your spiritual gifts and personality with Anchor Church",
+  "start_url": "/app/",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#2E7D32",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/Icon_Android.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/DiscoverMoreLogo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

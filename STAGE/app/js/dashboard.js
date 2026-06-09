@@ -1,0 +1,112 @@
+import { db, doc, getDoc } from './firebase-config.js?v=36';
+import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=36';
+import { SPIRITUAL_GIFTS } from './data.js?v=36';
+
+const SEND_NOW_URL = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow';
+
+function logOff() {
+  const docId = currentSession && currentSession.docId;
+  if (docId) {
+    // sendBeacon survives the navigation; CF dispatches based on completion status
+    navigator.sendBeacon(SEND_NOW_URL + '?docId=' + encodeURIComponent(docId));
+  }
+  setCurrentSession(null);
+  setUserData(null);
+  window.location.replace('/app/');
+}
+
+export async function renderDashboard(container) {
+  container.innerHTML = `
+    <div class="screen dashboard-screen">
+      <div class="dash-header">
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" class="dash-logo">
+        <div class="dash-divider"></div>
+        <div id="welcome-text" class="welcome-text">Welcome</div>
+        <div class="dash-divider-sm"></div>
+      </div>
+      <div class="dash-buttons" id="dash-buttons">
+        <button class="dash-btn" id="btn-surveys">Take Surveys</button>
+        <button class="dash-btn" id="btn-results" disabled>Survey Results</button>
+        <button class="dash-btn" id="btn-profile">Profile</button>
+        <button class="dash-btn" id="btn-resources">Resources</button>
+      </div>
+      <div id="top-gifts" class="top-gifts"></div>
+      <div style="margin-top:24px;text-align:center;">
+        <button id="btn-logoff" style="background:none;border:1.5px solid #D4B896;color:#5a6478;font-size:0.9rem;padding:8px 24px;cursor:pointer;font-family:inherit;border-radius:6px;font-weight:600;">
+          Log Off
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Navigation — always attach these first
+  document.getElementById('btn-surveys').addEventListener('click', () => navigate('/personality'));
+  document.getElementById('btn-results').addEventListener('click', () => navigate('/results'));
+  document.getElementById('btn-profile').addEventListener('click', () => navigate('/profile'));
+  document.getElementById('btn-resources').addEventListener('click', () => navigate('/resources'));
+  document.getElementById('btn-logoff').addEventListener('click', logOff);
+
+  // Load user data
+  try {
+    if (!currentSession) return;
+
+    let data = userData;
+    if (!data) {
+      const userDoc = await getDoc(doc(db, 'results', currentSession.docId));
+      if (userDoc.exists()) {
+        data = userDoc.data();
+        setUserData(data);
+      }
+    }
+
+    if (data) {
+      const name = data.NAME || currentSession.email;
+      document.getElementById('welcome-text').textContent = 'Welcome ' + name.split(' ')[0];
+
+      const surveyDone = data.updated && data.updated !== '1';
+      const resultsBtn = document.getElementById('btn-results');
+      const surveysBtn = document.getElementById('btn-surveys');
+
+      if (surveyDone) {
+        resultsBtn.disabled = false;
+        showTopGifts(data);
+      } else {
+        surveysBtn.classList.add('pulse');
+      }
+    }
+  } catch (e) {
+    console.error('Error loading user data:', e);
+  }
+}
+
+function showTopGifts(data) {
+  const scores = [];
+  for (let i = 0; i < 24; i++) {
+    const zz1 = Number(data['ZZ' + (i + 1)]) || 0;
+    const zz2 = Number(data['ZZ' + (i + 25)]) || 0;
+    const zz3 = Number(data['ZZ' + (i + 49)]) || 0;
+    scores.push({ index: i, score: Math.min(zz1 + zz2 + zz3, 9) });
+  }
+  scores.sort((a, b) => b.score - a.score);
+  const top3 = scores.slice(0, 3);
+
+  const giftsEl = document.getElementById('top-gifts');
+  giftsEl.innerHTML = `<h3>Top 3 Spiritual Gifts</h3>
+    <div class="gifts-list-v2">` + top3.map(g => {
+    const gift = SPIRITUAL_GIFTS[g.index];
+    return `
+      <div class="gift-card-v2 gift-top">
+        <div class="gift-card-v2-header" onclick="this.parentElement.classList.toggle('expanded')">
+          <span class="gift-card-v2-name">${gift.name}</span>
+          <span class="gift-card-v2-score">Score: ${g.score}</span>
+          <span class="gift-card-v2-chevron">&#9660;</span>
+        </div>
+        <div class="gift-card-v2-body">
+          <p class="gift-card-v2-desc">${gift.description}</p>
+          <p class="gift-card-v2-verse">${gift.verse}</p>
+          <p class="gift-card-v2-teams">${gift.teams}</p>
+        </div>
+      </div>
+    `;
+  }).join('') + `</div>`;
+}
