@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Discover More — Firestore security rules.
+//
+// HISTORY, so this is not "fixed" the wrong way again:
+//   Until 2026-04-01 the rules were `match /{document=**}` with
+//   `allow read, write: if request.auth != null` — everything, but only for a
+//   signed-in user. That blocked the website, whose welcome flow creates a
+//   person's record from just a name and email with no password.
+//   On 2026-04-01 that was replaced with a single `match /results/{docId}`
+//   rule. It fixed the website, but Firestore denies anything not explicitly
+//   matched, so Team, users, dmdate, emailLog and medications all became
+//   unreadable — and the iOS/Android Admin screen, which queries
+//   `Team where Active == "yes"`, started failing with
+//   "Missing or insufficient permissions".
+//
+// So neither old version is right. This keeps the website working AND gives
+// the apps their collections back.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // PUBLIC — no sign-in required.
+    // discovermore.app/app/ identifies people by name + email in session only;
+    // there is no password on that path, so this collection must stay reachable
+    // to an unauthenticated client. This is the part the 2026-04-01 change got
+    // right and it is still required.
+    match /results/{docId} {
+      allow read, write: if true;
+    }
+
+    // SIGNED-IN ONLY — everything below is touched exclusively by the iOS and
+    // Android apps, which do authenticate (Auth.auth().signIn in
+    // LoginSignupView.swift). The website never reads these, so requiring a
+    // signed-in user cannot break it.
+    //
+    // Team in particular holds names, emails and phone numbers of church
+    // volunteers. Leaving it open to the world the way `results` is would
+    // publish that roster to anyone who knows the project id.
+    match /Team/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /users/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /dmdate/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /emailLog/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /medications/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
