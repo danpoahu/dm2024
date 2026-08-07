@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Discover More — Anchor Church</title>
+<meta name="description" content="Download Discover More for iPhone or Android, or open it in your browser.">
+
+<!-- One link for every flyer, poster and email.
+     Sends iPhone to the App Store, Android to Google Play, anything else to the
+     web app. The point is that the DESTINATIONS can change without reprinting
+     anything, so never put a store URL directly on printed material again.
+
+     Deliberately NOT a bare redirect: the buttons below always render, so if
+     the sniff is wrong, JavaScript is off, or a store link breaks, the person
+     can still get where they are going instead of hitting a dead end. -->
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0QF6QT7NXW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0QF6QT7NXW');
+</script>
+
+<style>
+  :root{ --green:#14653f; --green-dark:#0f4a2e; --orange:#e8871e; --cream:#faf6ee; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+        background:var(--cream); color:#1f2937; padding:28px 20px; }
+  .card{ width:100%; max-width:420px; text-align:center; }
+  .icon{ width:96px; height:96px; border-radius:22px; display:block; margin:0 auto 18px;
+         box-shadow:0 6px 20px rgba(0,0,0,.18); }
+  .kicker{ font-size:.78rem; letter-spacing:.14em; text-transform:uppercase; color:var(--green);
+           font-weight:700; margin:0 0 4px; }
+  h1{ font-size:1.8rem; margin:0 0 10px; color:var(--green-dark); letter-spacing:-.4px; }
+  p.lead{ margin:0 0 26px; color:#4b5563; line-height:1.55; font-size:1rem; }
+  a.btn{ display:block; padding:16px 20px; border-radius:12px; text-decoration:none;
+         font-weight:700; font-size:1.02rem; margin-bottom:12px; transition:transform .08s, filter .12s; }
+  a.btn:active{ transform:translateY(1px); }
+  .primary{ background:var(--green); color:#fff; }
+  .secondary{ background:#fff; color:var(--green-dark); border:2px solid var(--green); }
+  .tertiary{ background:var(--orange); color:#fff; }
+  .status{ font-size:.9rem; color:#6b7280; margin:0 0 20px; min-height:1.2em; }
+  .foot{ margin-top:24px; font-size:.78rem; color:#9ca3af; line-height:1.5; }
+  .foot a{ color:#6b7280; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- The square 512px app icon, not the wordmark — this needs to look like the
+       thing they are about to install. -->
+  <img class="icon" src="/Icon_Android.jpg" alt="Discover More">
+
+  <p class="kicker">Anchor Church</p>
+  <h1>Discover More</h1>
+  <p class="lead">Take the DISC personality survey and the Spiritual Gifts assessment,
+     then see your results any time.</p>
+
+  <p class="status" id="status">Choose how you would like to open it.</p>
+
+  <a class="btn primary"   id="android" href="https://play.google.com/store/apps/details?id=app.anchor.discovermore.android">Get it on Google&nbsp;Play</a>
+  <a class="btn secondary" id="ios"     href="https://apps.apple.com/us/app/anchor-discover-more/id6748889981">Download on the App&nbsp;Store</a>
+  <a class="btn tertiary"  id="web"     href="/app/">Open in your browser</a>
+
+  <p class="foot">
+    Works on any phone &mdash; the browser version needs no install.<br>
+    <a href="/">discovermore.app</a>
+  </p>
+</div>
+
+<script>
+(function () {
+  var ua = navigator.userAgent || navigator.vendor || "";
+  var status = document.getElementById("status");
+
+  // iPadOS 13+ reports itself as a Mac, so a Mac with a touchscreen is an iPad.
+  var isIOS = /iPad|iPhone|iPod/.test(ua) ||
+              (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1);
+  var isAndroid = /Android/.test(ua);
+
+  var target = null, label = "";
+  if (isAndroid)  { target = document.getElementById("android").href; label = "Google Play"; }
+  else if (isIOS) { target = document.getElementById("ios").href;     label = "the App Store"; }
+
+  if (!target) {
+    // Desktop and anything unrecognised: no redirect. Someone here typed the
+    // address or is testing it, and a surprise jump to a store they cannot use
+    // is worse than showing them the choice.
+    status.textContent = "Choose how you would like to open it.";
+    return;
+  }
+
+  status.textContent = "Opening " + label + "…";
+  try { gtag("event", "get_redirect", { platform: isAndroid ? "android" : "ios" }); } catch (e) {}
+
+  // replace() so the back button returns to wherever they came from rather than
+  // bouncing them through this page again.
+  setTimeout(function () { window.location.replace(target); }, 350);
+})();
+</script>
+
+<noscript>
+  <p style="text-align:center;color:#6b7280;font-size:.9rem;">
+    Pick the button that matches your phone.
+  </p>
+</noscript>
+</body>
+</html>
