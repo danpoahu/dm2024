@@ -1,6 +1,6 @@
-import { db, doc, updateDoc } from './firebase-config.js?v=37';
-import { navigate, userData, setUserData, currentSession, setPendingDISC } from './app.js?v=37';
-import { DISC_QUESTIONS } from './data.js?v=37';
+import { db, doc, updateDoc } from './firebase-config.js?v=38';
+import { navigate, userData, setUserData, currentSession, setPendingDISC } from './app.js?v=38';
+import { DISC_QUESTIONS } from './data.js?v=38';
 
 export function renderPersonality(container) {
   const responses = new Array(20).fill(0);
@@ -107,13 +107,16 @@ export function renderPersonality(container) {
     savingEl.innerHTML = 'Saving...';
     savingEl.style.color = 'var(--green)';
 
-    const d = [], i = [], s = [], c = [];
-    for (let g = 0; g < 5; g++) {
-      d.push(responses[g * 4 + 0]);
-      i.push(responses[g * 4 + 1]);
-      s.push(responses[g * 4 + 2]);
-      c.push(responses[g * 4 + 3]);
-    }
+    // DISC_QUESTIONS comes in BLOCKS OF FIVE - Q1-5 Dominance, Q6-10 Influence,
+    // Q11-15 Steadiness, Q16-20 Conscientiousness. The four types do not rotate.
+    // This used to step by 4 (responses[g*4+n]), which built each score out of one
+    // question of its own type and three belonging to the other three, so every web
+    // DISC result from 2026-03-09 to 2026-08-08 was scrambled. iOS slices in fives
+    // (DashboardView.swift:190) and was always right.
+    const d = responses.slice(0, 5);
+    const i = responses.slice(5, 10);
+    const s = responses.slice(10, 15);
+    const c = responses.slice(15, 20);
 
     const updates = {};
     for (let j = 0; j < 5; j++) {

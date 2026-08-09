@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=37';
-import { renderDashboard } from './dashboard.js?v=37';
-import { renderPersonality } from './personality.js?v=37';
-import { renderSGSurvey } from './sgsurvey.js?v=37';
-import { renderResults } from './results.js?v=37';
-import { renderProfile } from './profile.js?v=37';
-import { renderResources } from './resources.js?v=37';
+import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=38';
+import { renderDashboard } from './dashboard.js?v=38';
+import { renderPersonality } from './personality.js?v=38';
+import { renderSGSurvey } from './sgsurvey.js?v=38';
+import { renderResults } from './results.js?v=38';
+import { renderProfile } from './profile.js?v=38';
+import { renderResources } from './resources.js?v=38';
 
 const appEl = document.getElementById('app');
 
@@ -195,7 +195,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v37</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v38</span>
     </div>
   `;
 
