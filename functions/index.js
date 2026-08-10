@@ -427,7 +427,11 @@ exports.dmSendResumeEmails = functions
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
     const db = admin.firestore();
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    // Was 24h. With a once-daily 9 AM run that meant anyone starting after 9 AM
+    // waited nearly two days: five people registered 9:53 AM on 9 Aug, missed
+    // Monday's run by 53 minutes, and would not have been contacted until
+    // Tuesday. Two hours is still long enough that nobody mid-survey is nagged.
+    const cutoffMs = Date.now() - 2 * 60 * 60 * 1000;
     const snapshot = await db.collection("results").get();
 
     const eligible = [];
@@ -440,7 +444,7 @@ exports.dmSendResumeEmails = functions
         eligible.push(docSnap.id);
       } else {
         const createdMs = data.created && data.created.toMillis ? data.created.toMillis() : 0;
-        if (createdMs === 0 || createdMs > dayAgo) return; // < 1 day old
+        if (createdMs === 0 || createdMs > cutoffMs) return; // still within the grace window
         if (data.resumeEmailSentAt) return; // already got resume email
         eligible.push(docSnap.id);
       }

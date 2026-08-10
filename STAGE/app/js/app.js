@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=38';
-import { renderDashboard } from './dashboard.js?v=38';
-import { renderPersonality } from './personality.js?v=38';
-import { renderSGSurvey } from './sgsurvey.js?v=38';
-import { renderResults } from './results.js?v=38';
-import { renderProfile } from './profile.js?v=38';
-import { renderResources } from './resources.js?v=38';
+import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=39';
+import { renderDashboard } from './dashboard.js?v=39';
+import { renderPersonality } from './personality.js?v=39';
+import { renderSGSurvey } from './sgsurvey.js?v=39';
+import { renderResults } from './results.js?v=39';
+import { renderProfile } from './profile.js?v=39';
+import { renderResources } from './resources.js?v=39';
 
 const appEl = document.getElementById('app');
 
@@ -131,10 +131,21 @@ function _resetInactivityTimer() {
   document.addEventListener(evt, _resetInactivityTimer, { passive: true });
 });
 
-window.addEventListener('beforeunload', () => {
+function _fireResumeBeacon() {
   if (!_shouldFireResumeEmail()) return;
   navigator.sendBeacon(SEND_NOW_URL + '?docId=' + encodeURIComponent(currentSession.docId));
+}
+
+// beforeunload does not fire reliably on mobile - iOS Safari in particular
+// often suspends a tab without it. visibilitychange -> hidden is the one
+// browsers do honour, and it covers switching apps, locking the phone and
+// closing the lid. sendBeacon survives the page going away; the endpoint
+// dedupes, so firing on both paths is safe.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') _fireResumeBeacon();
 });
+window.addEventListener('pagehide', _fireResumeBeacon);
+window.addEventListener('beforeunload', _fireResumeBeacon);
 
 _resetInactivityTimer();
 
@@ -195,7 +206,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v38-STAGE</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v39-STAGE</span>
     </div>
   `;
 

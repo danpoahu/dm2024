@@ -1,6 +1,6 @@
-import { db, doc, getDoc } from './firebase-config.js?v=38';
-import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=38';
-import { SPIRITUAL_GIFTS } from './data.js?v=38';
+import { db, doc, getDoc } from './firebase-config.js?v=39';
+import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=39';
+import { SPIRITUAL_GIFTS } from './data.js?v=39';
 
 const SEND_NOW_URL = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow';
 
