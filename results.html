@@ -9,6 +9,10 @@
   *,*::before,*::after { box-sizing: border-box; }
   html,body { margin: 0; padding: 0; background: #F5F1E8; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   .header { padding: 14px 20px 6px; }
+  /* Same back link as analytics.html and email.html carry in their .topbar, so
+     all three reports return to the Stats home the same way. */
+  .header a.back { display: inline-block; margin-bottom: 6px; text-decoration: none; color: #1B4B5A; font-weight: 700; font-size: 0.92rem; }
+  .header a.back:hover { color: #2E7D32; }
   .header h1 { margin: 0 0 8px; color: #2E7D32; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; }
   .nav-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 12px 10px; }
   .nav-btn { background: #F5F1E8; border: 1px solid rgba(0,0,0,0.18); color: #1B4B5A; font-size: 1rem; font-weight: 700; width: 36px; height: 32px; border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
@@ -52,6 +56,7 @@
 <body>
 
 <div class="header">
+  <a class="back" href="info.html">&larr; Stats</a>
   <h1>Survey Results</h1>
 </div>
 
