@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=39';
-import { renderDashboard } from './dashboard.js?v=39';
-import { renderPersonality } from './personality.js?v=39';
-import { renderSGSurvey } from './sgsurvey.js?v=39';
-import { renderResults } from './results.js?v=39';
-import { renderProfile } from './profile.js?v=39';
-import { renderResources } from './resources.js?v=39';
+import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=40';
+import { renderDashboard } from './dashboard.js?v=40';
+import { renderPersonality } from './personality.js?v=40';
+import { renderSGSurvey } from './sgsurvey.js?v=40';
+import { renderResults } from './results.js?v=40';
+import { renderProfile } from './profile.js?v=40';
+import { renderResources } from './resources.js?v=40';
 
 const appEl = document.getElementById('app');
 
@@ -206,7 +206,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v39-STAGE</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v40-STAGE</span>
     </div>
   `;
 
@@ -319,7 +319,24 @@ function showWelcomePopup() {
     document.getElementById('welcome-btn').click();
   });
 
+  // One submit at a time. The email lookup below is a network round-trip, and
+  // every tap or Enter (a held Enter key repeats) during it used to run this
+  // handler again, each creating its own record (Edith, 9-19: 6 in 14ms).
+  let _submitting = false;
   document.getElementById('welcome-btn').addEventListener('click', async () => {
+    if (_submitting) return;
+    _submitting = true;
+    const btn = document.getElementById('welcome-btn');
+    btn.disabled = true;
+    try {
+      await submitWelcome(btn);
+    } finally {
+      _submitting = false;
+      btn.disabled = false;
+    }
+  });
+
+  async function submitWelcome(btn) {
     const first = document.getElementById('welcome-first').value.trim();
     const last = document.getElementById('welcome-last').value.trim();
     const email = document.getElementById('welcome-email').value.trim();
@@ -368,8 +385,6 @@ function showWelcomePopup() {
       return;
     }
 
-    const btn = document.getElementById('welcome-btn');
-    btn.disabled = true;
     btn.textContent = 'Setting up...';
 
     try {
@@ -406,10 +421,9 @@ function showWelcomePopup() {
     } catch (e) {
       console.error('Error creating session:', e);
       errorEl.textContent = 'Something went wrong. Please try again.';
-      btn.disabled = false;
       btn.textContent = "Let's Go";
     }
-  });
+  }
 }
 
 // Service worker removed — was causing aggressive caching issues
