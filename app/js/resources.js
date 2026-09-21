@@ -1,5 +1,5 @@
-import { navigate } from './app.js?v=39';
-import { WAYS_TO_SERVE } from './data.js?v=39';
+import { navigate } from './app.js?v=40';
+import { WAYS_TO_SERVE } from './data.js?v=40';
 
 export function renderResources(container) {
   container.innerHTML = `
