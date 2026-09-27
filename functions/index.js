@@ -136,29 +136,70 @@ exports.dmHelpChat = functions
       ? BASE_SYSTEM_PROMPT + ADMIN_ADDON
       : BASE_SYSTEM_PROMPT;
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    // Every question and answer is saved to helpChatLog (Admin SDK only; no
+    // client can read it) so the Help Chat report can show what people ask.
+    // A daily cap keeps an abused public endpoint from running up the bill.
+    const db = admin.firestore();
+    const lastUser = [...cleanMessages].reverse().find((m) => m.role === "user");
+    const ua = String(req.get("user-agent") || "");
+    const platform = /CFNetwork|Darwin/.test(ua) && !/Mozilla/.test(ua) ? "iOS app"
+      : /iPhone|Android|Mobile/.test(ua) ? "Web (phone)" : "Web";
+    const logChat = (fields) => db.collection("helpChatLog").add(Object.assign({
+      at: admin.firestore.FieldValue.serverTimestamp(),
+      question: lastUser ? lastUser.content : "",
+      turn: cleanMessages.filter((m) => m.role === "user").length,
+      isAdmin: isAdmin === true,
+      platform,
+    }, fields)).catch((e) => console.error("helpChatLog write failed:", e.message));
 
-    return client.messages
-      .create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: cleanMessages,
-      })
-      .then((response) => {
-        const reply =
-          response.content[0]?.text ||
-          "Sorry, I could not generate a response. Please try again.";
-        return res.json({ reply });
+    const askClaude = () => {
+      const client = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || "").trim() });
+      return client.messages
+        .create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 300,
+          system: systemPrompt,
+          messages: cleanMessages,
+        })
+        .then((response) => {
+          const reply =
+            response.content[0]?.text ||
+            "Sorry, I could not generate a response. Please try again.";
+          const u = response.usage || {};
+          return logChat({
+            answer: reply, status: "ok", model: response.model || "",
+            inputTokens: u.input_tokens || 0, outputTokens: u.output_tokens || 0,
+          }).then(() => res.json({ reply }));
+        })
+        .catch((err) => {
+          console.error("Claude API error:", err && err.status, err && err.message);
+          const reply =
+            "I'm having trouble connecting right now. Please try again in a moment, or email info@discovermore.app for help.";
+          return logChat({
+            answer: reply, status: "error",
+            error: (String((err && err.status) || "") + " " + String((err && err.message) || "")).slice(0, 200),
+          }).then(() => res.status(500).json({ reply }));
+        });
+    };
+
+    const day = new Date(Date.now() - 10 * 3600e3).toISOString().slice(0, 10); // HST date
+    const dayRef = db.collection("helpChatDaily").doc(day);
+    return dayRef.set({ count: admin.firestore.FieldValue.increment(1) }, { merge: true })
+      .then(() => dayRef.get())
+      .then((snap) => {
+        if (((snap.data() || {}).count || 0) > HELP_CHAT_DAILY_CAP) {
+          const reply = "The help chat is resting for today. Please try again tomorrow, or email info@discovermore.app for help.";
+          return logChat({ answer: reply, status: "capped" }).then(() => res.json({ reply }));
+        }
+        return askClaude();
       })
       .catch((err) => {
-        console.error("Claude API error:", err);
-        return res.status(500).json({
-          reply:
-            "I'm having trouble connecting right now. Please try again in a moment, or email info@discovermore.app for help.",
-        });
+        console.error("dmHelpChat daily cap check failed:", err.message);
+        return askClaude();
       });
   });
+
+const HELP_CHAT_DAILY_CAP = 300;
 
 // ============================================================
 // Survey Resume — email pipeline
@@ -1371,4 +1412,81 @@ exports.dmGetResumeSession = functions
       console.error("[dmGetResumeSession] error:", e);
       return res.status(500).json({ error: "Server error" });
     }
+  });
+// Help Chat report: every question and answer from helpChatLog, newest first.
+exports.dmHelpChatReport = functions
+  .region("us-central1")
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
+    const escapeHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    const snap = await admin.firestore().collection("helpChatLog").orderBy("at", "desc").limit(2000).get();
+    const rows = [];
+    snap.forEach((doc) => {
+      const d = doc.data();
+      rows.push(Object.assign({}, d, { ms: d.at && d.at.toMillis ? d.at.toMillis() : 0 }));
+    });
+    const now = Date.now();
+    const in30 = rows.filter((r) => r.ms && now - r.ms <= 30 * 86400e3).length;
+    const convos = rows.filter((r) => r.turn === 1).length;
+    const problems = rows.filter((r) => r.status && r.status !== "ok").length;
+    const tokIn = rows.reduce((a, r) => a + (r.inputTokens || 0), 0);
+    const tokOut = rows.reduce((a, r) => a + (r.outputTokens || 0), 0);
+    const cost = (tokIn / 1e6) * 1 + (tokOut / 1e6) * 5; // Claude Haiku 4.5 list price
+    const hst = (ms) => ms ? new Date(ms - 10 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "?";
+    const badge = (r) => (!r.status || r.status === "ok") ? "" : `<span style="background:#fff3e0;color:#a05400;border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:700;margin-left:6px;">${escapeHtml(r.status)}</span>`;
+    const who = (r) => escapeHtml(r.platform || "?") + (r.isAdmin ? ' <span style="background:#e8f5ec;color:#2E7D32;border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:700;">admin</span>' : "");
+    const short = (t) => { t = String(t || ""); return escapeHtml(t.slice(0, 90)) + (t.length > 90 ? "…" : ""); };
+    const row = (r) => `<tr>
+      <td style="white-space:nowrap;">${hst(r.ms)}</td>
+      <td style="white-space:nowrap;">${who(r)}</td>
+      <td style="text-align:center;">${r.turn || ""}</td>
+      <td><strong>${escapeHtml(r.question)}</strong>${badge(r)}</td>
+      <td><details><summary style="cursor:pointer;color:#1B4B5A;">${short(r.answer)}</summary><div style="white-space:pre-wrap;margin-top:6px;">${escapeHtml(r.answer)}</div></details></td>
+    </tr>`;
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>DM Help Chat</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+  header { border-bottom: 3px solid #4CAF50; padding-bottom: 1rem; margin-bottom: 2rem; }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.85rem; color: #2E7D32; }
+  header .sub { color: #5a6478; font-size: 0.95rem; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; margin: 1rem 0 2rem; }
+  .stat { background: #F5F1E8; border-radius: 8px; padding: 0.85rem 1rem; }
+  .stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #757575; font-weight: 600; }
+  .stat .val { font-size: 1.75rem; font-weight: 700; color: #1B4B5A; line-height: 1.1; margin-top: 0.1rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid #e8eaed; vertical-align: top; }
+  th { background: #F5F1E8; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6478; border-bottom: 2px solid #d4b896; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.84rem; color: #1B4B5A; }
+  .empty { text-align: center; color: #757575; padding: 2rem; font-style: italic; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde6; color: #757575; font-size: 0.82rem; }
+  .note { background: #eef4fb; border-left: 4px solid #8db4d8; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.9rem; margin: 1rem 0; }
+  #q { width: 100%; max-width: 420px; padding: 8px 10px; border: 1px solid #d8dde6; border-radius: 8px; font-size: 0.95rem; margin-bottom: 0.5rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Discover More — Help Chat</h1>
+  <div class="sub">Every question asked in the app and on the website · Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC · times below are Hawaiʻi time</div>
+</header>
+<div class="stats">
+  <div class="stat"><div class="label">Questions asked</div><div class="val">${rows.length}</div></div>
+  <div class="stat"><div class="label">Last 30 days</div><div class="val">${in30}</div></div>
+  <div class="stat"><div class="label">Conversations</div><div class="val">${convos}</div></div>
+  <div class="stat"><div class="label">Problems</div><div class="val">${problems}</div></div>
+  <div class="stat"><div class="label">AI cost so far</div><div class="val">$${cost.toFixed(2)}</div></div>
+</div>
+<div class="note">Each row is one question. <strong>Turn</strong> 1 starts a conversation; 2, 3… are follow-ups in the same chat. Click an answer to read all of it. Use this to spot questions the chat answers badly, then improve its instructions. The chat is capped at ${HELP_CHAT_DAILY_CAP} questions a day.</div>
+<input id="q" type="search" placeholder="Search questions and answers…" oninput="var t=this.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().indexOf(t)>=0?'':'none'})">
+<table>
+  <thead><tr><th>When (HST)</th><th>Where</th><th>Turn</th><th>Question</th><th>Answer</th></tr></thead>
+  <tbody>
+    ${rows.length ? rows.map(row).join("") : `<tr><td colspan="5" class="empty">No questions yet. They will appear here as soon as someone uses the help chat.</td></tr>`}
+  </tbody>
+</table>
+<footer>Project <code>dm-auth-65cc4</code> · collection <code>helpChatLog</code> · model Claude Haiku 4.5 · Endpoints: <code>dmHelpChat</code> · <code>dmHelpChatReport</code></footer>
+</body></html>`;
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
   });
