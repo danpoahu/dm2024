@@ -1,10 +1,10 @@
-import { db, doc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=40';
-import { renderDashboard } from './dashboard.js?v=40';
-import { renderPersonality } from './personality.js?v=40';
-import { renderSGSurvey } from './sgsurvey.js?v=40';
-import { renderResults } from './results.js?v=40';
-import { renderProfile } from './profile.js?v=40';
-import { renderResources } from './resources.js?v=40';
+import { db, doc, getDoc, setDoc, Timestamp, collection, query, where, getDocs } from './firebase-config.js?v=41';
+import { renderDashboard } from './dashboard.js?v=41';
+import { renderPersonality } from './personality.js?v=41';
+import { renderSGSurvey } from './sgsurvey.js?v=41';
+import { renderResults } from './results.js?v=41';
+import { renderProfile } from './profile.js?v=41';
+import { renderResources } from './resources.js?v=41';
 
 const appEl = document.getElementById('app');
 
@@ -16,6 +16,31 @@ export let pendingDISC = null; // unsaved DISC updates (carried to SG save)
 export function setUserData(data) { userData = data; }
 export function setCurrentSession(session) { currentSession = session; }
 export function setPendingDISC(data) { pendingDISC = data; }
+
+// ----- Remember this person on this device (v41) -----
+// A refresh, a new tab or coming back later used to land on the Welcome screen,
+// and people who re-entered their details there made a second record. The
+// record id is kept in localStorage; on return they get "Welcome back, NAME"
+// with Continue / Not you, so a shared phone or church tablet never drops the
+// next person into someone else's results. STAGE and live share an origin, so
+// they use different keys. Every access is wrapped: private mode just falls
+// back to the Welcome screen.
+const _SESSION_KEY = window.location.pathname.startsWith('/STAGE/') ? 'dm-session-stage' : 'dm-session';
+const _SESSION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+function _rememberSession(docId) {
+  try { localStorage.setItem(_SESSION_KEY, JSON.stringify({ docId, savedAt: Date.now() })); } catch (e) {}
+}
+export function forgetSession() {
+  try { localStorage.removeItem(_SESSION_KEY); } catch (e) {}
+}
+function _rememberedDocId() {
+  try {
+    const v = JSON.parse(localStorage.getItem(_SESSION_KEY) || 'null');
+    if (!v || typeof v.docId !== 'string' || !v.docId) return null;
+    if (!v.savedAt || Date.now() - v.savedAt > _SESSION_MAX_AGE_MS) { forgetSession(); return null; }
+    return v.docId;
+  } catch (e) { return null; }
+}
 
 // Router
 const routes = {
@@ -52,8 +77,60 @@ if (_saveLinkToken) {
   showSaveLinkPage(_saveLinkToken);
 } else if (_resumeToken) {
   handleResumeToken(_resumeToken);
+} else if (_rememberedDocId()) {
+  showRememberedSession(_rememberedDocId());
 } else {
   showWelcomePopup();
+}
+
+async function showRememberedSession(docId) {
+  appEl.innerHTML = `
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem;background:#F5F1E8;min-height:100vh;">
+      <div>
+        <img src="/DiscoverMoreLogo.png" alt="Discover More" style="width:140px;margin-bottom:1.5rem;">
+        <p style="color:#2E7D32;font-size:1.05rem;font-weight:600;margin:0;">Loading your saved progress...</p>
+      </div>
+    </div>
+  `;
+  let snap = null;
+  try {
+    // getDoc can wait forever on a dead connection; give up after 8 s and show the Welcome screen
+    snap = await Promise.race([
+      getDoc(doc(db, 'results', docId)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+    ]);
+  } catch (e) {
+    console.warn('Remembered session not loaded:', e);
+    showWelcomePopup();
+    return;
+  }
+  if (!snap || !snap.exists()) { forgetSession(); showWelcomePopup(); return; }
+  const d = snap.data();
+  const first = String(d.NAME || '').trim().split(/\s+/)[0] || 'friend';
+  const esc = (x) => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  appEl.innerHTML = `
+    <div class="screen login-screen" style="position:relative;">
+      <img src="/DiscoverMoreLogo.png" alt="Discover More" class="login-logo">
+      <div class="login-card">
+        <h2 style="color:#2E7D32;">Welcome back, ${esc(first)}!</h2>
+        <p style="font-size:.95rem;color:#666;margin-bottom:18px;">Pick up right where you left off.</p>
+        <button id="remember-continue" class="btn btn-primary">Continue as ${esc(first)}</button>
+        <button id="remember-notme" style="margin-top:14px;background:none;border:none;color:#5a6478;font-size:.95rem;text-decoration:underline;cursor:pointer;font-family:inherit;padding:8px;">Not ${esc(first)}? Start new</button>
+      </div>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v41</span>
+    </div>
+  `;
+  document.getElementById('remember-continue').addEventListener('click', () => {
+    currentSession = { docId: docId, email: (d.EMAIL || '').toLowerCase(), name: d.NAME || '' };
+    userData = d;
+    _rememberSession(docId);   // refresh the 90-day clock
+    navigate('/dashboard');
+    handleRoute();
+  });
+  document.getElementById('remember-notme').addEventListener('click', () => {
+    forgetSession();
+    showWelcomePopup();
+  });
 }
 
 function showSaveLinkPage(token) {
@@ -166,6 +243,7 @@ async function handleResumeToken(token) {
 
     currentSession = { docId: session.docId, email: session.email, name: session.name };
     userData = session.userData;
+    _rememberSession(session.docId);
 
     // Strip ?resume from URL so a refresh doesn't re-call the function.
     const cleanUrl = window.location.pathname + (window.location.hash || '');
@@ -206,7 +284,7 @@ function showWelcomePopup() {
         <div id="welcome-error" class="error-msg"></div>
         <button id="welcome-btn" class="btn btn-primary">Let's Go</button>
       </div>
-      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v40</span>
+      <span style="position:fixed;bottom:8px;right:12px;font-size:.65rem;color:rgba(0,0,0,.25);font-weight:700;">v41</span>
     </div>
   `;
 
@@ -225,6 +303,7 @@ function showWelcomePopup() {
     const d = match.data;
     currentSession = { docId: match.docId, email: (d.EMAIL || '').toLowerCase(), name: d.NAME || '' };
     userData = d;
+    _rememberSession(match.docId);
     navigate('/dashboard');
     handleRoute();
   }
@@ -416,6 +495,7 @@ function showWelcomePopup() {
 
       currentSession = { docId: docId, email: email.toLowerCase(), name: fullName };
       userData = data;
+      _rememberSession(docId);
       navigate('/dashboard');
       handleRoute();
     } catch (e) {

@@ -1,5 +1,5 @@
-import { navigate, userData } from './app.js?v=40';
-import { SPIRITUAL_GIFTS } from './data.js?v=40';
+import { navigate, userData } from './app.js?v=41';
+import { SPIRITUAL_GIFTS } from './data.js?v=41';
 
 const DISC_INFO = {
   D: {
