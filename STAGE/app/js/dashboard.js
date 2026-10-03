@@ -1,6 +1,6 @@
-import { db, doc, getDoc } from './firebase-config.js?v=40';
-import { navigate, setUserData, userData, currentSession, setCurrentSession } from './app.js?v=40';
-import { SPIRITUAL_GIFTS } from './data.js?v=40';
+import { db, doc, getDoc } from './firebase-config.js?v=41';
+import { navigate, setUserData, userData, currentSession, setCurrentSession, forgetSession } from './app.js?v=41';
+import { SPIRITUAL_GIFTS } from './data.js?v=41';
 
 const SEND_NOW_URL = 'https://us-central1-dm-auth-65cc4.cloudfunctions.net/dmSendResumeEmailNow';
 
@@ -10,6 +10,7 @@ function logOff() {
     // sendBeacon survives the navigation; CF dispatches based on completion status
     navigator.sendBeacon(SEND_NOW_URL + '?docId=' + encodeURIComponent(docId));
   }
+  forgetSession();   // Log Off = this device stops remembering them
   setCurrentSession(null);
   setUserData(null);
   window.location.replace('/app/');
