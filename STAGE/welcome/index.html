@@ -221,6 +221,9 @@ const DEV = IS_IPAD ? 'iPad' : 'iPhone';
 const IS_ANDROID = /Android/i.test(UA);
 const APP_STORE = 'https://apps.apple.com/us/app/anchor-discover-more/id6748889981';
 const PLAY_STORE = 'https://play.google.com/store/apps/details?id=app.anchor.discovermore.android';
+// Android: open the Play Store APP straight to the listing (shows "Open" when installed). The plain
+// play.google.com link gave a blank screen on a Galaxy Note 9 with the app already installed (10-03).
+const PLAY_INTENT = 'intent://details?id=app.anchor.discovermore.android#Intent;scheme=market;package=com.android.vending;S.browser_fallback_url=' + encodeURIComponent(PLAY_STORE) + ';end';
 const WEB_APP = '../app/';
 
 // ---------- voice (same picker as the LDAH deck engine) ----------
@@ -416,7 +419,7 @@ function chooseHTML(){
   const webCard = (cls, title) => `<a class="choice ${cls}" id="webChoice" href="${WEB_APP}"><span class="ct">${globe}${title}</span><ul><li>Nothing to install</li><li>Works in any browser</li></ul></a>`;
   let pill, body;
   if (IS_IOS){ pill = phone + 'Looks like you’re on an ' + DEV; body = appCard(APP_STORE, apple, 'Get the ' + DEV + ' app', 'Face ID') + webCard('secondary', 'Continue on the web'); }
-  else if (IS_ANDROID){ pill = phone + 'Looks like you’re on Android'; body = appCard(PLAY_STORE, droid, 'Get the Android app', 'your fingerprint') + webCard('secondary', 'Continue on the web'); }
+  else if (IS_ANDROID){ pill = phone + 'Looks like you’re on Android'; body = appCard(PLAY_INTENT, droid, 'Get the Android app', 'your fingerprint') + webCard('secondary', 'Continue on the web'); }
   else { pill = desk + 'Looks like you’re on a computer'; body = webCard('primary', 'Start on the web') +
     `<p class="other-store" id="otherStore">On your phone? Get the <a href="${APP_STORE}">iPhone</a> or <a href="${PLAY_STORE}">Android</a> app</p>`; }
   return `<div class="inner"><div class="device-pill">${pill}</div>${HEAD('Your turn', 'Pick how to <span class="green">start.</span>')}${body}
