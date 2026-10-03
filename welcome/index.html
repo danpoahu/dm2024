@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B4B5A">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Discover More - Welcome</title>
+<link rel="icon" href="../Icon_Android.jpg">
+<link rel="apple-touch-icon" href="../Icon_Android.jpg">
+<!--
+  Welcome tour (LIVE, promoted from STAGE/welcome 2026-10-03). Same feel as the LDAH training decks: a cover with a Start button,
+  then every scene plays itself step by step with narration + captions and moves on by itself.
+  Control bar: Back / Pause / Next, scene dots, Voice. Phone-first (portrait), no 1280x720 stage.
+    0 Cover   1 What you'll discover   2 Animated survey   3 Pick how to start (device-aware)
+  The web link is relative (../app/): /welcome/ -> /app/, /STAGE/welcome/ -> /STAGE/app/.
+-->
+<style>
+:root{
+  --cream:#F5F1E8; --green:#4CAF50; --green-dark:#2E7D32; --orange:#FF9800;
+  --orange-btn:#FFA34D; --teal:#1B4B5A; --tan:#D4B896; --brown:#A67C52;
+  --gray-light:#E0E0E0; --text-dark:#1A1A1A; --text-light:#757575;
+  --bar-h:62px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;
+  background:var(--teal);color:var(--text-dark);overscroll-behavior:none}
+
+/* ---------- frame ---------- */
+#view{position:fixed;left:0;right:0;top:0;bottom:calc(var(--bar-h) + env(safe-area-inset-bottom));
+  background:var(--cream);overflow:hidden}
+#nbar{position:absolute;left:0;right:0;top:env(safe-area-inset-top);height:5px;z-index:60;background:rgba(0,0,0,.06)}
+#nbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--orange));transition:width .6s ease}
+.scene{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  padding:calc(28px + env(safe-area-inset-top)) 20px 92px}
+.scene.on{display:flex;animation:fade .5s ease both}
+.scene::after{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:linear-gradient(var(--green),var(--orange))}
+.cover::after{display:none}
+.inner{width:100%;max-width:440px}
+.kicker{font-size:13px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--orange)}
+h2{font-size:clamp(24px,6.6vw,31px);font-weight:800;line-height:1.15;margin-top:4px}
+.scene.on header{animation:rise .6s ease-out both}
+.green{color:var(--green-dark)}
+.stage-badge{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;z-index:5;font-size:11px;font-weight:800;
+  color:#fff;background:var(--orange);border-radius:10px;padding:3px 9px;letter-spacing:.5px}
+
+/* ---------- caption ---------- */
+#cap{position:fixed;left:50%;bottom:calc(var(--bar-h) + env(safe-area-inset-bottom) + 12px);transform:translateX(-50%);
+  width:min(440px,calc(100vw - 28px));background:rgba(27,75,90,.95);color:#fff;font-size:15px;line-height:1.4;
+  padding:10px 14px;border-radius:14px;z-index:70;opacity:0;transition:opacity .3s;pointer-events:none;
+  box-shadow:0 6px 20px rgba(0,0,0,.18)}
+#cap.has{opacity:1}
+
+/* ---------- control bar ---------- */
+#bar{position:fixed;left:0;right:0;bottom:0;height:calc(var(--bar-h) + env(safe-area-inset-bottom));
+  padding:0 10px env(safe-area-inset-bottom);background:var(--teal);display:flex;align-items:center;gap:6px;z-index:80}
+#bar button{font:inherit;font-weight:700;font-size:14px;background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:12px;
+  padding:10px 12px;cursor:pointer;min-width:44px;min-height:40px}
+#bar button[disabled]{opacity:.3;cursor:default}
+#bar #play{background:var(--green);min-width:74px}
+#dots{flex:1;display:flex;gap:7px;justify-content:center}
+#dots button{width:10px!important;height:10px;min-width:0!important;min-height:0!important;padding:0!important;border-radius:50%!important;
+  background:rgba(255,255,255,.3)!important;transition:all .3s}
+#dots button.on{background:var(--orange)!important;width:24px!important;border-radius:5px!important}
+#dots button.seen{background:var(--tan)!important}
+#voice svg{width:20px;height:20px;display:block}
+
+/* ---------- cover ---------- */
+.cover{background:linear-gradient(155deg,#1B4B5A 0%,#2E7D32 62%,#4CAF50 100%);color:#fff;padding-bottom:40px}
+.logo-card{background:var(--cream);border-radius:22px;padding:14px 22px;display:inline-block;box-shadow:0 12px 34px rgba(0,0,0,.22);
+  animation:rise .7s .05s both}
+.logo-card img{width:min(56vw,230px);display:block}
+.cover h1{font-size:clamp(30px,8.6vw,42px);font-weight:800;line-height:1.08;margin-top:22px;animation:rise .7s .2s both}
+.cover h1 span{color:#FFD08A}
+.cover .sub{font-size:17px;line-height:1.45;opacity:.93;margin-top:12px;animation:rise .7s .35s both}
+.gate{margin-top:26px;display:flex;flex-direction:column;align-items:center;gap:12px;animation:rise .7s .55s both}
+.btn{font:inherit;font-weight:800;font-size:20px;padding:16px 44px;border-radius:19px;border:0;background:var(--orange);color:#fff;
+  cursor:pointer;box-shadow:0 8px 24px rgba(255,152,0,.45);animation:pulse 2.4s ease-in-out infinite}
+.btn:active{transform:scale(.96)}
+@keyframes pulse{0%,100%{box-shadow:0 8px 24px rgba(255,152,0,.45)}50%{box-shadow:0 8px 34px rgba(255,152,0,.8)}}
+.btn.ghost{background:transparent;border:2px solid rgba(255,255,255,.55);font-size:15px;padding:10px 20px;box-shadow:none;animation:none}
+.gate label{font-size:15px;display:flex;gap:8px;align-items:center;opacity:.92}
+.gate label input{width:19px;height:19px;accent-color:var(--orange)}
+.waves{position:absolute;left:0;right:0;bottom:0;height:110px;pointer-events:none;opacity:.28}
+.waves svg{position:absolute;bottom:0;width:200%;height:100%}
+.waves .w1{animation:drift 18s linear infinite}.waves .w2{animation:drift 26s linear infinite reverse;opacity:.6}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.spark{position:absolute;width:26px;height:26px;animation:twinkle 2.2s ease-in-out infinite}
+@keyframes twinkle{0%,100%{transform:scale(.6) rotate(0);opacity:.4}50%{transform:scale(1.1) rotate(45deg);opacity:1}}
+
+/* ---------- discover cards ---------- */
+.cards{display:grid;gap:12px;margin-top:20px;text-align:left}
+.card{background:#fff;border-radius:20px;padding:16px;display:flex;gap:14px;align-items:flex-start;border:2px solid rgba(255,152,0,.25);
+  box-shadow:0 6px 22px rgba(166,124,82,.12);opacity:.15;transform:translateX(18px);transition:opacity .45s,transform .45s,border-color .45s,box-shadow .45s}
+.card.shown{opacity:1;transform:none}
+.card.now{border-color:var(--orange);box-shadow:0 10px 28px rgba(255,152,0,.25)}
+.badge{flex:0 0 46px;height:46px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px}
+.card h3{font-size:17px;font-weight:800;margin-bottom:3px}
+.card p{font-size:14.5px;line-height:1.45;color:#555}
+
+/* ---------- phone demo ---------- */
+.phone{position:relative;margin:12px auto 0;height:min(50vh,450px);aspect-ratio:9/18.5;background:#1A1A1A;border-radius:36px;padding:8px;
+  box-shadow:0 18px 50px rgba(26,26,26,.28)}
+.notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:34%;height:17px;background:#1A1A1A;border-radius:0 0 12px 12px;z-index:5}
+.screen{position:relative;width:100%;height:100%;background:var(--cream);border-radius:29px;overflow:hidden;font-size:11px}
+.scr{position:absolute;inset:0;padding:28px 11px 11px;display:flex;flex-direction:column;transition:opacity .45s,transform .45s;text-align:left}
+.scr.off{opacity:0;transform:scale(.96);pointer-events:none}
+.scr-title{font-size:13px;font-weight:800;color:var(--green)}
+.scr-sub{font-size:9px;color:#666;margin:2px 0 7px;line-height:1.3}
+.prog-label{font-size:9.5px;font-weight:700;color:var(--green-dark);text-align:right;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.prog{height:7px;background:var(--gray-light);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--green);border-radius:4px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.qwrap{position:relative;flex:1;margin-top:11px}
+.q{position:absolute;inset:0;background:#fff;border-radius:16px;border:2px solid rgba(255,152,0,.35);padding:13px 9px;display:flex;flex-direction:column;
+  justify-content:space-between;transition:transform .5s cubic-bezier(.5,0,.2,1),opacity .5s}
+.q.out{transform:translateX(-120%) rotate(-6deg);opacity:0}
+.q.in{transform:translateX(120%) rotate(6deg);opacity:0}
+.q-num{font-size:9px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase}
+.q-text{font-size:13.5px;font-weight:700;line-height:1.3;margin-top:6px}
+.rates{display:flex;gap:5px;justify-content:center}
+.rate{flex:1;aspect-ratio:1;max-width:36px;border-radius:50%;border:2px solid rgba(255,152,0,.47);display:grid;place-items:center;font-weight:800;
+  font-size:12px;background:#fff;transition:all .2s;text-align:center}
+.rate.wide{aspect-ratio:auto;max-width:none;border-radius:12px;padding:7px 2px;font-size:8.5px;line-height:1.15}
+.rate.wide b{display:block;font-size:13px}
+.rate.pick{background:var(--green);border-color:var(--green);color:#fff;transform:scale(1.12);box-shadow:0 4px 14px rgba(76,175,80,.45)}
+.scale-ends{display:flex;justify-content:space-between;font-size:8.5px;color:var(--text-light);margin-top:4px}
+.finger{position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;z-index:20;pointer-events:none;background:rgba(26,26,26,.2);
+  border:2px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.25);transition:transform .55s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0}
+.finger.tap{animation:tap .32s ease}
+@keyframes tap{50%{transform:var(--at) scale(.75);background:rgba(76,175,80,.55)}}
+.ripple{position:absolute;width:20px;height:20px;border-radius:50%;border:3px solid var(--green);z-index:19;pointer-events:none;animation:ripple .6s ease-out forwards}
+@keyframes ripple{from{transform:scale(.4);opacity:1}to{transform:scale(3.2);opacity:0}}
+.ff{position:absolute;inset:0;display:grid;place-items:center;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s}
+.ff.show{opacity:1}
+.ff span{background:rgba(46,125,50,.94);color:#fff;font-weight:800;font-size:13px;padding:8px 14px;border-radius:14px;box-shadow:0 6px 20px rgba(46,125,50,.35)}
+.res-logo{width:62%;margin:0 auto 2px;display:block}
+.res-h{font-size:12px;font-weight:800;color:var(--green);text-align:center;margin:6px 0}
+.quad{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 6px}
+.quad div{border-radius:10px;padding:8px 4px;text-align:center;font-weight:800;color:#fff;font-size:15px;line-height:1;opacity:.25;transform:scale(.9);
+  transition:all .5s cubic-bezier(.2,.8,.2,1)}
+.quad div small{display:block;font-size:7.5px;font-weight:600;margin-top:3px}
+.quad div.hit{opacity:1;transform:scale(1);box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.quad div.hit2{opacity:.8;transform:scale(.97)}
+.type{text-align:center;font-weight:800;font-size:12px;color:var(--green-dark);margin-top:5px;opacity:0;transition:opacity .4s}
+.type.show{opacity:1}
+.gift{display:flex;align-items:center;gap:6px;margin:5px 6px 0;opacity:0;transform:translateX(-10px);transition:all .45s}
+.gift.show{opacity:1;transform:none}
+.gift label{flex:0 0 38%;font-size:9.5px;font-weight:700}
+.gift .bar{flex:1;height:9px;border-radius:5px;background:var(--gray-light);overflow:hidden}
+.gift .bar i{display:block;height:100%;width:0;border-radius:5px;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.gift em{font-style:normal;font-size:9px;font-weight:800;color:var(--green-dark);width:14px;text-align:right}
+.sample{font-size:8px;color:var(--text-light);text-align:center;margin-top:6px}
+.steps{display:flex;justify-content:center;gap:6px;margin-top:12px}
+.step{font-size:13px;font-weight:700;color:#8a8a8a;padding:6px 11px;border-radius:14px;transition:all .35s}
+.step.on{background:#fff;color:var(--green-dark);box-shadow:0 3px 12px rgba(166,124,82,.18)}
+.conf{position:absolute;width:8px;height:12px;z-index:45;pointer-events:none;border-radius:2px}
+
+/* ---------- pick how to start ---------- */
+.device-pill{display:inline-flex;align-items:center;gap:7px;background:#fff;border-radius:20px;padding:7px 14px;font-size:13px;font-weight:700;
+  color:var(--teal);box-shadow:0 3px 12px rgba(166,124,82,.15);margin-bottom:12px;animation:rise .6s both}
+.device-pill svg{width:16px;height:16px}
+.choice{display:block;width:100%;text-decoration:none;border-radius:22px;padding:17px 18px 15px;text-align:left;margin-top:16px;position:relative;
+  opacity:0;transform:translateY(16px);transition:opacity .5s,transform .5s cubic-bezier(.2,.8,.2,1)}
+.choice.shown{opacity:1;transform:none}
+.choice:active{transform:scale(.98)}
+.choice.primary{background:var(--green);color:#fff;box-shadow:0 8px 26px rgba(76,175,80,.38)}
+.choice.primary.shown{animation:pulseG 2.6s 1s ease-in-out infinite}
+@keyframes pulseG{0%,100%{box-shadow:0 8px 26px rgba(76,175,80,.38)}50%{box-shadow:0 8px 36px rgba(76,175,80,.7)}}
+.choice.secondary{background:#fff;color:var(--text-dark);border:2px solid rgba(255,152,0,.47)}
+.choice .ct{font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px}
+.choice .ct svg{width:22px;height:22px;flex:0 0 22px}
+.choice ul{list-style:none;margin-top:7px;font-size:14px;line-height:1.5}
+.choice ul li::before{content:"\2713";font-weight:800;margin-right:7px}
+.choice.secondary ul li::before{color:var(--green)}
+.choice .rec{position:absolute;top:-10px;right:16px;background:var(--orange);color:#fff;font-size:11px;font-weight:800;letter-spacing:.6px;
+  text-transform:uppercase;border-radius:10px;padding:4px 10px}
+.other-store{margin-top:16px;font-size:14px;color:var(--brown);font-weight:700;opacity:0;transition:opacity .5s}
+.other-store.shown{opacity:1}
+.other-store a{color:var(--orange)}
+.replay{margin-top:14px;background:none;border:0;font:inherit;font-size:14px;font-weight:700;color:#5a6478;text-decoration:underline;cursor:pointer}
+
+@media (max-height:680px){
+  .card{padding:12px 14px}.card p{font-size:13.5px}
+  .choice ul{display:none}
+  .phone{height:min(46vh,400px)}
+  .cover h1{margin-top:16px}.gate{margin-top:18px}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<div id="view"><div id="nbar"><i></i></div><div id="scenes"></div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+  <button id="prev" type="button" aria-label="Back">&#9664;</button>
+  <button id="play" type="button">Start</button>
+  <button id="next" type="button" aria-label="Next">&#9654;</button>
+  <div id="dots"></div>
+  <button id="voice" type="button" aria-pressed="false" aria-label="Voice"></button>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const q = s => document.querySelector('.scene.on ' + s);
+const STOP = 'stop';
+let cur = 0, idx = 0, run = 0, playing = false, started = false, FAST = false;
+let voiceOn = false, voiceObj = null;
+
+// sleep(ms, t): rejects once the run token moves on, so a scene's animation stops dead on Back/Next/Pause
+const sleep = (ms, t) => new Promise((res, rej) => setTimeout(() => (t === undefined || t === run) ? res() : rej(STOP), FAST ? 0 : ms));
+
+// ---------- device ----------
+const UA = navigator.userAgent || navigator.vendor || '';
+const IS_IOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_IPAD = /iPad/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const DEV = IS_IPAD ? 'iPad' : 'iPhone';
+const IS_ANDROID = /Android/i.test(UA);
+const APP_STORE = 'https://apps.apple.com/us/app/anchor-discover-more/id6748889981';
+const PLAY_STORE = 'https://play.google.com/store/apps/details?id=app.anchor.discovermore.android';
+// Android: open the Play Store APP straight to the listing (shows "Open" when installed). The plain
+// play.google.com link gave a blank screen on a Galaxy Note 9 with the app already installed (10-03).
+const PLAY_INTENT = 'intent://details?id=app.anchor.discovermore.android#Intent;scheme=market;package=com.android.vending;S.browser_fallback_url=' + encodeURIComponent(PLAY_STORE) + ';end';
+const WEB_APP = '../app/';
+
+// ---------- voice (same picker as the LDAH deck engine) ----------
+// Voices built into the device first (Ava/Samantha on Mac + iPhone, Google's on-device voices on Android).
+// Chrome's "Google US English" on a Mac is an ONLINE voice: slow to start and it drops lines, so it is last resort.
+function pickVoice(){
+  const vs = speechSynthesis.getVoices(); if (!vs.length) return null;
+  const en = vs.filter(v => /^en(-|_|$)/i.test(v.lang));
+  const local = en.filter(v => v.localService);
+  const pref = [v=>/Ava/.test(v.name)&&/(Premium|Enhanced)/.test(v.name), v=>/Samantha/.test(v.name)&&/(Premium|Enhanced)/.test(v.name),
+    v=>/^Ava\b/.test(v.name), v=>/^Samantha\b/.test(v.name), v=>/Google/.test(v.name)&&v.lang==='en-US', v=>v.lang==='en-US', v=>true];
+  for (const pool of [local, en]) for (const f of pref){ const m = pool.find(f); if (m) return m; }
+  return null;
+}
+const HAS_TTS = 'speechSynthesis' in window;
+if (HAS_TTS){ voiceObj = pickVoice(); speechSynthesis.onvoiceschanged = () => { voiceObj = pickVoice(); }; }
+
+// Narration is pre-recorded (macOS "Ava (Premium)", audio/*.m4a, made by audio/make-audio.py).
+// An <audio> element plays with an iPhone on Silent; speechSynthesis is muted by the Silent switch.
+// File name = hash of the line, so editing a line without re-recording just falls back to the device voice.
+function clipFor(text){ let h = 5381; for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return 'audio/' + h.toString(36) + '.m4a'; }
+const AUD = new Audio(); AUD.preload = 'auto'; AUD.setAttribute('playsinline', '');
+let audOK = true;   // flips off if this browser can't play the clips; then the device voice takes over
+function playClip(text, t){
+  return new Promise(res => {
+    let fin = false;
+    const words = text.split(/\s+/).length;
+    const done = r => { if (fin) return; fin = true; clearTimeout(guard); clearTimeout(startWatch); AUD.onended = AUD.onerror = AUD.onplaying = null; res(r); };
+    const guard = setTimeout(() => done('ok'), words * 650 + 6000);
+    const startWatch = setTimeout(() => { if (!fin){ try { AUD.pause(); } catch (e) {} done('slow'); } }, 6000);   // slow network: device voice for this line only
+    AUD.onplaying = () => clearTimeout(startWatch);
+    AUD.onended = () => done('ok');
+    AUD.onerror = () => done('fail');
+    if (t !== run) return done('ok');
+    AUD.src = clipFor(text);
+    const p = AUD.play(); if (p && p.catch) p.catch(e => { if (!e || e.name !== 'AbortError') done('fail'); });
+  });
+}
+
+let liveUtt = null;   // hold a reference: Chrome can garbage-collect a playing utterance and its end event never fires
+async function speak(text, t){
+  if (voiceOn && audOK){
+    const c = $('cap'); c.textContent = text; c.classList.add('has');
+    const r = await playClip(text, t);
+    if (r === 'ok' || t !== run) return;
+    if (r === 'fail') audOK = false;   // clip missing or blocked: device voice from here on
+  }
+  return speakTTS(text, t);
+}
+function speakTTS(text, t){
+  return new Promise(res => {
+    const c = $('cap'); c.textContent = text; c.classList.add('has');
+    const words = text.split(/\s+/).length, t0 = Date.now();
+    if (!voiceOn || !HAS_TTS){ setTimeout(res, words * 300 + 900); return; }   // reading pace when muted / no voice
+    let finished = false, tries = 0, startWatch = null, curU = null;
+    const guard = setTimeout(done, words * 520 + 5000);
+    function done(){
+      if (finished) return; finished = true; clearTimeout(guard); clearTimeout(startWatch);
+      const min = words * 260, e = Date.now() - t0; e < min ? setTimeout(res, min - e) : res();
+    }
+    function attempt(){
+      if (t !== run) return done();
+      tries++;
+      const u = new SpeechSynthesisUtterance(text.replace(/DISC/g, 'disk'));
+      if (voiceObj){ u.voice = voiceObj; u.lang = voiceObj.lang; } else u.lang = 'en-US';
+      let started = false;
+      u.onstart = () => { started = true; clearTimeout(startWatch); };
+      u.onend = () => { if (liveUtt === u) liveUtt = null; done(); };
+      u.onerror = e => {
+        if (liveUtt === u) liveUtt = null;
+        // our own cancel (scene change / pause) -> just finish; anything else gets one retry
+        if (e.error === 'interrupted' || e.error === 'canceled' || tries >= 2) done(); else retry();
+      };
+      liveUtt = u; curU = u;
+      try { speechSynthesis.resume(); } catch (e) {}   // Chrome can get stuck "paused"
+      speechSynthesis.speak(u);
+      // If the line never starts, try once more; after that the caption carries on at reading pace
+      startWatch = setTimeout(() => { if (!started && !finished) (tries < 2 ? retry() : (speechSynthesis.cancel(), done())); }, 2500);
+    }
+    function retry(){
+      clearTimeout(startWatch);
+      if (finished || t !== run) return done();
+      if (curU){ curU.onstart = curU.onend = curU.onerror = null; }   // so cancelling the stuck line doesn't end this step
+      if (voiceObj && !voiceObj.localService){ const v = pickVoice(); if (v && v.localService) voiceObj = v; }
+      speechSynthesis.cancel(); setTimeout(attempt, 120);
+    }
+    // only cancel when something is actually queued; cancel-then-speak back to back can swallow the new line
+    if (speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(attempt, 120); }
+    else attempt();
+  });
+}
+
+const ICON_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
+const ICON_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></svg>';
+function setVoiceBtn(){ $('voice').innerHTML = voiceOn ? ICON_ON : ICON_OFF; $('voice').setAttribute('aria-pressed', voiceOn); }
+
+// ---------- shared bits ----------
+const WAVES = '<div class="waves"><svg class="w1" viewBox="0 0 2560 150" preserveAspectRatio="none"><path fill="#F5F1E8" d="M0 90 Q160 50 320 90 T640 90 T960 90 T1280 90 T1600 90 T1920 90 T2240 90 T2560 90 V150 H0Z"/></svg><svg class="w2" viewBox="0 0 2560 150" preserveAspectRatio="none"><path fill="#FFD08A" d="M0 110 Q160 80 320 110 T640 110 T960 110 T1280 110 T1600 110 T1920 110 T2240 110 T2560 110 V150 H0Z"/></svg></div>';
+const SPARK = (l, t, d) => `<svg class="spark" style="left:${l};top:${t};animation-delay:${d}s" viewBox="0 0 34 34"><path d="M17 1 L20 14 L33 17 L20 20 L17 33 L14 20 L1 17 L14 14 Z" fill="#FFD08A"/></svg>`;
+const HEAD = (k, h) => `<header><div class="kicker">${k}</div><h2>${h}</h2></header>`;
+const STAGE_BADGE = '';
+
+function confetti(host, n){
+  if (FAST) return;
+  const cols = ['#4CAF50','#FF9800','#A67C52','#D4B896','#FFA34D','#2E7D32'];
+  const w = host.clientWidth, h = host.clientHeight;
+  for (let i = 0; i < n; i++){
+    const c = document.createElement('div'); c.className = 'conf'; c.style.background = cols[i % cols.length];
+    c.style.left = w/2 + 'px'; c.style.top = h*0.4 + 'px'; host.appendChild(c);
+    const a = Math.random()*Math.PI*2, v = 60 + Math.random()*w*0.6, dx = Math.cos(a)*v, dy = Math.sin(a)*v - h*0.25;
+    c.animate([{transform:'translate(0,0) rotate(0)',opacity:1},{transform:`translate(${dx*.7}px,${dy*.7}px) rotate(${Math.random()*540}deg)`,opacity:1,offset:.5},
+      {transform:`translate(${dx}px,${dy + h*0.5}px) rotate(${Math.random()*900}deg)`,opacity:0}],
+      {duration:1600 + Math.random()*800, easing:'cubic-bezier(.2,.6,.4,1)', fill:'forwards'}).finished.then(() => c.remove());
+  }
+}
+
+// ---------- phone demo helpers ----------
+const DISC_Q = ['I am assertive, demanding, and decisive.', 'I tend to be the life of the party.', 'I thrive in consistent environments over changing ones.'];
+const SG_Q = ['I often have people over to my house.', 'I like organizing services and events.', 'I enjoy working with my hands.'];
+
+function phoneHTML(){
+  return `<div class="phone"><div class="notch"></div><div class="screen">
+    <div class="scr" id="scrDisc"><div class="scr-title">Personality Survey</div><div class="scr-sub">Rate each statement from 1 (Least) to 5 (Most)</div>
+      <div class="prog-label" id="discLabel">0 of 20</div><div class="prog"><i id="discBar"></i></div><div class="qwrap" id="discWrap"></div></div>
+    <div class="scr off" id="scrSg"><div class="scr-title">Spiritual Gifts Survey</div><div class="scr-sub">1 (Not at all), 2 (Sometimes), 3 (Mostly true)</div>
+      <div class="prog-label" id="sgLabel">0 of 72</div><div class="prog"><i id="sgBar"></i></div><div class="qwrap" id="sgWrap"></div></div>
+    <div class="scr off" id="scrRes"><img class="res-logo" src="../DiscoverMoreLogo.png" alt=""><div class="res-h">Survey Results</div>
+      <div class="quad"><div style="background:var(--green)" data-k="D">D<small>Dominant</small></div><div style="background:var(--orange)" data-k="I">I<small>Inspiring</small></div>
+        <div style="background:var(--tan)" data-k="C">C<small>Cautious</small></div><div style="background:var(--brown)" data-k="S">S<small>Supportive</small></div></div>
+      <div class="type">You are: I / S</div>
+      <div class="res-h" style="margin-top:8px">Your Top Spiritual Gifts</div>
+      <div class="gift"><label>Hospitality</label><div class="bar"><i style="background:var(--green)" data-w="100"></i></div><em>9</em></div>
+      <div class="gift"><label>Teaching</label><div class="bar"><i style="background:var(--orange)" data-w="89"></i></div><em>8</em></div>
+      <div class="gift"><label>Helps</label><div class="bar"><i style="background:var(--brown)" data-w="89"></i></div><em>8</em></div>
+      <div class="sample">Sample results</div></div>
+    <div class="ff"><span>Fast forward</span></div><div class="finger"></div>
+  </div></div>
+  <div class="steps"><span class="step">1 Personality</span><span class="step">2 Gifts</span><span class="step">3 Results</span></div>`;
+}
+function setStep(n){ document.querySelectorAll('.scene.on .step').forEach((s, i) => s.classList.toggle('on', i === n)); }
+function showScr(id){ ['scrDisc','scrSg','scrRes'].forEach(x => $(x).classList.toggle('off', x !== id)); }
+function setProg(which, n, total){ $(which + 'Label').textContent = n + ' of ' + total; $(which + 'Bar').style.width = (n / total * 100) + '%'; }
+
+function card(wrap, label, text, kind){
+  const el = document.createElement('div'); el.className = 'q in';
+  const rates = kind === 'disc'
+    ? [1,2,3,4,5].map(n => `<div class="rate">${n}</div>`).join('')
+    : [['1','Not at all'],['2','Sometimes'],['3','Mostly true']].map(r => `<div class="rate wide"><b>${r[0]}</b>${r[1]}</div>`).join('');
+  el.innerHTML = `<div><div class="q-num">${label}</div><div class="q-text">${text}</div></div><div><div class="rates">${rates}</div>` +
+    (kind === 'disc' ? '<div class="scale-ends"><span>Least</span><span>Most</span></div>' : '') + '</div>';
+  wrap.appendChild(el); void el.offsetWidth; el.classList.remove('in'); return el;
+}
+async function tapButton(btn, t){
+  const screen = q('.screen'), finger = q('.finger');
+  const a = screen.getBoundingClientRect(), b = btn.getBoundingClientRect();
+  const x = b.left - a.left + b.width/2 - 16, y = b.top - a.top + b.height/2 - 16;
+  const at = `translate(${x}px,${y}px)`;
+  finger.style.opacity = 1; finger.style.transform = at; finger.style.setProperty('--at', at);
+  await sleep(600, t);
+  finger.classList.remove('tap'); void finger.offsetWidth; finger.classList.add('tap');
+  const r = document.createElement('div'); r.className = 'ripple'; r.style.left = (x + 6) + 'px'; r.style.top = (y + 6) + 'px';
+  screen.appendChild(r); setTimeout(() => r.remove(), 700);
+  btn.classList.add('pick');
+  await sleep(450, t);
+}
+async function answerThree(kind, questions, picks, t){
+  const wrap = $(kind === 'disc' ? 'discWrap' : 'sgWrap'), total = kind === 'disc' ? 20 : 72;
+  for (let i = 0; i < 3; i++){
+    const c = card(wrap, 'Question ' + (i + 1), questions[i], kind);
+    await sleep(500, t);
+    await tapButton(c.querySelectorAll('.rate')[picks[i]], t);
+    c.classList.add('out'); setProg(kind, i + 1, total);
+    setTimeout(() => c.remove(), 600);
+    await sleep(250, t);
+  }
+}
+async function fastForward(kind, label, t){
+  const total = kind === 'disc' ? 20 : 72, ff = q('.ff');
+  q('.finger').style.opacity = 0; ff.querySelector('span').textContent = label; ff.classList.add('show');
+  for (let n = 3; n <= total; n += Math.max(1, Math.round(total / 18))){ setProg(kind, Math.min(n, total), total); await sleep(60, t); }
+  setProg(kind, total, total); await sleep(500, t); ff.classList.remove('show');
+}
+
+// ---------- device-aware final scene ----------
+function chooseHTML(){
+  const phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>';
+  const desk = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+  const apple = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.5 2-3.7 2.1-3.8-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.1 2.5-1.8 3.1-.5 7.6 1.3 10.1.8 1.2 1.8 2.6 3.1 2.5 1.3-.1 1.7-.8 3.3-.8 1.5 0 1.9.8 3.3.8 1.4 0 2.2-1.2 3-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-3.9zM13.9 4.6c.7-.8 1.1-1.9 1-3-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.2-.6 2.9-1.4z"/></svg>';
+  const droid = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.5l1.8-3.1a.4.4 0 0 0-.7-.4l-1.8 3.1A11 11 0 0 0 12 8.2c-1.8 0-3.4.3-4.9.9L5.3 6a.4.4 0 0 0-.7.4l1.8 3.1A10.4 10.4 0 0 0 1 18h22a10.4 10.4 0 0 0-5.4-8.5zM7 15.3a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm10 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>';
+  const globe = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>';
+  const appCard = (href, icon, title, bio) => `<a class="choice primary" id="appChoice" href="${href}"><span class="rec">Best experience</span>
+    <span class="ct">${icon}${title}</span><ul><li>Sign in with ${bio}</li><li>Your results always in your pocket</li><li>Smooth, full-screen surveys</li></ul></a>`;
+  const webCard = (cls, title) => `<a class="choice ${cls}" id="webChoice" href="${WEB_APP}"><span class="ct">${globe}${title}</span><ul><li>Nothing to install</li><li>Works in any browser</li></ul></a>`;
+  let pill, body;
+  if (IS_IOS){ pill = phone + 'Looks like you’re on an ' + DEV; body = appCard(APP_STORE, apple, 'Get the ' + DEV + ' app', 'Face ID') + webCard('secondary', 'Continue on the web'); }
+  else if (IS_ANDROID){ pill = phone + 'Looks like you’re on Android'; body = appCard(PLAY_INTENT, droid, 'Get the Android app', 'your fingerprint') + webCard('secondary', 'Continue on the web'); }
+  else { pill = desk + 'Looks like you’re on a computer'; body = webCard('primary', 'Start on the web') +
+    `<p class="other-store" id="otherStore">On your phone? Get the <a href="${APP_STORE}">iPhone</a> or <a href="${PLAY_STORE}">Android</a> app</p>`; }
+  return `<div class="inner"><div class="device-pill">${pill}</div>${HEAD('Your turn', 'Pick how to <span class="green">start.</span>')}${body}
+    <button class="replay" type="button" data-go="again">Watch the tour again</button></div>`;
+}
+const CHOOSE_SAY = IS_IOS
+  ? ['Looks like you’re on an ' + DEV + '.', 'For the best experience, get the free Discover More app from the App Store.', 'Or, continue right here on the web. Nothing to install.']
+  : IS_ANDROID
+  ? ['Looks like you’re on Android.', 'For the best experience, get the free Discover More app from Google Play.', 'Or, continue right here on the web. Nothing to install.']
+  : ['Looks like you’re on a computer.', 'Start right here on the web. Nothing to install.', 'On your phone? The iPhone and Android apps are free.'];
+
+// ---------- scenes ----------
+const SC = [
+// 0 COVER
+{cls:'cover', html:() => `${STAGE_BADGE}${SPARK('12%','14%',0)}${SPARK('84%','22%',.7)}${SPARK('78%','64%',1.3)}${SPARK('8%','70%',1.9)}
+  <div class="inner"><div class="logo-card"><img src="../DiscoverMoreLogo.png" alt="Discover More, Anchor Church"></div>
+  <h1>Find your gifts.<br><span>Find your place.</span></h1>
+  <p class="sub">A one-minute tour, then pick how you’d like to start.</p>
+  <div class="gate"><button class="btn" type="button" data-go="start">Start the tour</button>
+    <label><input type="checkbox" id="voiceChk" checked> Read it out loud to me</label>
+    <button class="btn ghost" type="button" data-go="skip">Skip the tour</button></div></div>${WAVES}`,
+ steps:[{say:'Welcome to Discover More, from Anchor Church! Let’s take a quick look at how it works.'}]},
+
+// 1 WHAT YOU'LL DISCOVER
+{html:() => `${STAGE_BADGE}<div class="inner">${HEAD('What you’ll discover', 'Two short surveys. <span class="green">One big picture.</span>')}
+  <div class="cards">
+   <div class="card"><div class="badge" style="background:var(--green)">DISC</div><div><h3>Your personality</h3><p>20 statements, rated 1 to 5.</p></div></div>
+   <div class="card"><div class="badge" style="background:var(--orange)">72</div><div><h3>Your spiritual gifts</h3><p>72 statements, rated 1 to 3, across 24 gifts from Administration to Wisdom.</p></div></div>
+   <div class="card"><div class="badge" style="background:var(--brown)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></div><div><h3>Where to serve</h3><p>Your top gifts come with Bible verses and the teams that fit you best.</p></div></div>
+  </div></div>`,
+ steps:[
+  {say:'First, a personality survey. Twenty statements, rated one to five.', li:0},
+  {say:'Then, a spiritual gifts survey. Seventy-two statements across twenty-four gifts.', li:1},
+  {say:'And at the end, you’ll see where you could serve, with the teams that fit you best.', li:2}]},
+
+// 2 ANIMATED SURVEY
+{html:() => `${STAGE_BADGE}<div class="inner">${HEAD('How it works', 'Tap. Swipe. <span class="green">Done.</span>')}${phoneHTML()}</div>`,
+ steps:[
+  {say:'Just tap a number for each statement. One means least like you, five means most.', act:async t => { setStep(0); await answerThree('disc', DISC_Q, [3, 4, 2], t); }},
+  {say:'It moves on by itself, and saves as you go.', act:async t => { await fastForward('disc', 'Moves on by itself', t); }},
+  {say:'The spiritual gifts survey works the same way, with just three choices.', act:async t => { showScr('scrSg'); setStep(1); await sleep(500, t); await answerThree('sg', SG_Q, [2, 1, 2], t); }},
+  {say:'Keep going, all the way to seventy-two.', act:async t => { await fastForward('sg', 'Saved as you go', t); }},
+  {say:'And then, your results! Your personality type, and your top spiritual gifts.', act:async t => {
+     showScr('scrRes'); setStep(2); confetti(q('.screen'), 40); await sleep(600, t);
+     q('.quad [data-k="I"]').classList.add('hit'); await sleep(350, t);
+     q('.quad [data-k="S"]').classList.add('hit2'); await sleep(300, t);
+     q('.type').classList.add('show'); await sleep(400, t);
+     for (const g of document.querySelectorAll('.scene.on .gift')){ g.classList.add('show'); const i = g.querySelector('i'); i.style.width = i.dataset.w + '%'; await sleep(320, t); }
+   }}]},
+
+// 3 PICK HOW TO START
+{html:() => STAGE_BADGE + chooseHTML(),
+ steps:[
+  {say:CHOOSE_SAY[0]},
+  {say:CHOOSE_SAY[1], act:async () => { const a = q('.choice.primary'); if (a) a.classList.add('shown'); }},
+  {say:CHOOSE_SAY[2], act:async () => { const w = q('.choice.secondary'); if (w) w.classList.add('shown'); const o = q('.other-store'); if (o) o.classList.add('shown'); }}],
+ // everything is visible at once if someone lands here by Skip or the dots
+ reveal:() => document.querySelectorAll('.scene.on .choice, .scene.on .other-store').forEach(e => e.classList.add('shown'))}
+];
+
+// ---------- engine (LDAH pattern: steps of say + act, auto-advance) ----------
+const host = $('scenes');
+SC.forEach((s, i) => { const d = document.createElement('section'); d.className = 'scene ' + (s.cls || ''); host.appendChild(d); s.el = d; });
+
+function render(i){ const s = SC[i]; s.el.innerHTML = s.html(); wire(s.el); if (started && i === 0){ const g = s.el.querySelector('.gate'); if (g) g.style.visibility = 'hidden'; } }
+function li(i){ document.querySelectorAll('.scene.on .card').forEach((c, j) => { c.classList.toggle('shown', j <= i); c.classList.toggle('now', j === i); }); }
+function dots(){
+  const d = $('dots'); d.innerHTML = '';
+  SC.forEach((_, i) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Scene ' + (i + 1));
+    b.className = i === cur ? 'on' : i < cur ? 'seen' : ''; b.onclick = () => { if (started) enter(i, true); }; d.appendChild(b); });
+}
+function nbar(f){ $('nbar').firstChild.style.width = (f * 100) + '%'; }
+function stop(){ run++; try { AUD.pause(); } catch (e) {} if (HAS_TTS) speechSynthesis.cancel(); }
+function clean(){ $('cap').classList.remove('has'); document.querySelectorAll('.conf,.ripple').forEach(e => e.remove()); }
+function setPlay(){ $('play').textContent = !started ? 'Start' : playing ? 'Pause' : (cur === SC.length - 1 && idx >= SC[cur].steps.length ? 'Replay' : 'Play'); }
+function navState(){ $('prev').disabled = !started || cur === 0; $('next').disabled = !started || cur === SC.length - 1; }
+
+async function enter(i, autoplay){
+  stop(); clean(); SC[cur].el.classList.remove('on'); cur = i; render(i); SC[i].el.classList.add('on');
+  idx = 0; nbar(0); dots(); navState();
+  if (autoplay){ playing = true; setPlay(); }
+  if (playing){ const t = ++run; try { await sleep(450, t); playLoop(t); } catch (e) {} }
+}
+async function playLoop(t){
+  const s = SC[cur];
+  for (; idx < s.steps.length; idx++){
+    if (t !== run) return;
+    const st = s.steps[idx]; nbar((idx + 1) / s.steps.length); if (st.li != null) li(st.li);
+    const a = st.act ? Promise.resolve().then(() => st.act(t)).catch(() => {}) : Promise.resolve();
+    await Promise.all([a, speak(st.say, t)]);
+    if (t !== run) return;
+    try { await sleep(350, t); } catch (e) { return; }
+  }
+  if (t !== run) return;
+  $('cap').classList.remove('has');
+  if (cur < SC.length - 1){ try { await sleep(900, t); } catch (e) { return; } if (playing) enter(cur + 1); }
+  else { if (s.reveal) s.reveal(); playing = false; setPlay(); }
+}
+// Play after Pause: rebuild the scene and fast-forward the steps already seen, then carry on
+async function resumeAt(k){
+  const t = ++run, s = SC[cur]; clean(); render(cur); s.el.classList.add('on');
+  FAST = true;
+  for (let j = 0; j < k; j++){ const st = s.steps[j]; if (st.li != null) li(st.li); try { if (st.act) await st.act(t); } catch (e) {} }
+  FAST = false; if (t !== run) return; idx = k; playLoop(t);
+}
+
+function begin(){
+  if (started) return;
+  const vc = $('voiceChk'); voiceOn = !!(vc && vc.checked); setVoiceBtn();
+  if (voiceOn){
+    // unlock audio inside the tap (iOS only allows the first play() from a user gesture)
+    try { AUD.src = 'audio/silence.m4a'; const p = AUD.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    if (!voiceObj) voiceObj = pickVoice(); try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
+    SC.forEach(sc => sc.steps.forEach(st => { try { fetch(clipFor(st.say)); } catch (e) {} }));   // warm the cache
+  }
+  started = true; playing = true; setPlay(); navState();
+  const g = SC[0].el.querySelector('.gate'); if (g) g.style.visibility = 'hidden';
+  dots(); idx = 0; playLoop(++run);
+}
+function skipToEnd(){ started = true; playing = false; enter(SC.length - 1, false); SC[cur].reveal(); idx = SC[cur].steps.length; nbar(1); setPlay(); }
+
+function wire(root){
+  root.querySelectorAll('[data-go=start]').forEach(b => b.onclick = begin);
+  root.querySelectorAll('[data-go=skip]').forEach(b => b.onclick = skipToEnd);
+  root.querySelectorAll('[data-go=again]').forEach(b => b.onclick = () => { started = true; enter(0, true); });
+}
+
+$('play').onclick = () => {
+  if (!started) return begin();
+  if (!playing && cur === SC.length - 1 && idx >= SC[cur].steps.length){ enter(0, true); return; }
+  playing = !playing; setPlay();
+  if (playing) resumeAt(idx); else { stop(); $('cap').classList.remove('has'); }
+};
+$('next').onclick = () => enter(Math.min(cur + 1, SC.length - 1), true);
+$('prev').onclick = () => enter(Math.max(cur - 1, 0), true);
+$('voice').onclick = () => {
+  voiceOn = !voiceOn; setVoiceBtn();
+  if (!voiceOn){ try { AUD.pause(); } catch (e) {} if (HAS_TTS) speechSynthesis.cancel(); }
+  else { try { AUD.src = 'audio/silence.m4a'; AUD.play().catch(() => {}); } catch (e) {} }
+  const vc = $('voiceChk'); if (vc) vc.checked = voiceOn;
+};
+addEventListener('keydown', e => {
+  if (!started){ if (e.key === 'Enter') begin(); return; }
+  if (e.key === 'ArrowRight') $('next').click(); else if (e.key === 'ArrowLeft') $('prev').click();
+  else if (e.key === ' '){ e.preventDefault(); $('play').click(); }
+});
+// swipe between scenes
+let sx = null, sy = null;
+addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive:true});
+addEventListener('touchend', e => {
+  if (sx === null || !started) return;
+  const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) (dx < 0 ? $('next') : $('prev')).click();
+  sx = null;
+}, {passive:true});
+
+render(0); SC[0].el.classList.add('on'); setVoiceBtn(); navState(); dots(); setPlay();
+</script>
+</body>
+</html>
