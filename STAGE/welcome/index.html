@@ -216,6 +216,8 @@ const sleep = (ms, t) => new Promise((res, rej) => setTimeout(() => (t === undef
 // ---------- device ----------
 const UA = navigator.userAgent || navigator.vendor || '';
 const IS_IOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_IPAD = /iPad/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const DEV = IS_IPAD ? 'iPad' : 'iPhone';
 const IS_ANDROID = /Android/i.test(UA);
 const APP_STORE = 'https://apps.apple.com/us/app/anchor-discover-more/id6748889981';
 const PLAY_STORE = 'https://play.google.com/store/apps/details?id=app.anchor.discovermore.android';
@@ -236,12 +238,43 @@ function pickVoice(){
 const HAS_TTS = 'speechSynthesis' in window;
 if (HAS_TTS){ voiceObj = pickVoice(); speechSynthesis.onvoiceschanged = () => { voiceObj = pickVoice(); }; }
 
+// Narration is pre-recorded (macOS "Ava (Premium)", audio/*.m4a, made by audio/make-audio.py).
+// An <audio> element plays with an iPhone on Silent; speechSynthesis is muted by the Silent switch.
+// File name = hash of the line, so editing a line without re-recording just falls back to the device voice.
+function clipFor(text){ let h = 5381; for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return 'audio/' + h.toString(36) + '.m4a'; }
+const AUD = new Audio(); AUD.preload = 'auto'; AUD.setAttribute('playsinline', '');
+let audOK = true;   // flips off if this browser can't play the clips; then the device voice takes over
+function playClip(text, t){
+  return new Promise(res => {
+    let fin = false;
+    const words = text.split(/\s+/).length;
+    const done = r => { if (fin) return; fin = true; clearTimeout(guard); clearTimeout(startWatch); AUD.onended = AUD.onerror = AUD.onplaying = null; res(r); };
+    const guard = setTimeout(() => done('ok'), words * 650 + 6000);
+    const startWatch = setTimeout(() => { if (!fin){ try { AUD.pause(); } catch (e) {} done('slow'); } }, 6000);   // slow network: device voice for this line only
+    AUD.onplaying = () => clearTimeout(startWatch);
+    AUD.onended = () => done('ok');
+    AUD.onerror = () => done('fail');
+    if (t !== run) return done('ok');
+    AUD.src = clipFor(text);
+    const p = AUD.play(); if (p && p.catch) p.catch(e => { if (!e || e.name !== 'AbortError') done('fail'); });
+  });
+}
+
 let liveUtt = null;   // hold a reference: Chrome can garbage-collect a playing utterance and its end event never fires
-function speak(text, t){
+async function speak(text, t){
+  if (voiceOn && audOK){
+    const c = $('cap'); c.textContent = text; c.classList.add('has');
+    const r = await playClip(text, t);
+    if (r === 'ok' || t !== run) return;
+    if (r === 'fail') audOK = false;   // clip missing or blocked: device voice from here on
+  }
+  return speakTTS(text, t);
+}
+function speakTTS(text, t){
   return new Promise(res => {
     const c = $('cap'); c.textContent = text; c.classList.add('has');
     const words = text.split(/\s+/).length, t0 = Date.now();
-    if (!voiceOn){ setTimeout(res, words * 300 + 900); return; }   // reading pace when muted
+    if (!voiceOn || !HAS_TTS){ setTimeout(res, words * 300 + 900); return; }   // reading pace when muted / no voice
     let finished = false, tries = 0, startWatch = null, curU = null;
     const guard = setTimeout(done, words * 520 + 5000);
     function done(){
@@ -315,8 +348,8 @@ function phoneHTML(){
     <div class="scr off" id="scrSg"><div class="scr-title">Spiritual Gifts Survey</div><div class="scr-sub">1 (Not at all), 2 (Sometimes), 3 (Mostly true)</div>
       <div class="prog-label" id="sgLabel">0 of 72</div><div class="prog"><i id="sgBar"></i></div><div class="qwrap" id="sgWrap"></div></div>
     <div class="scr off" id="scrRes"><img class="res-logo" src="../../DiscoverMoreLogo.png" alt=""><div class="res-h">Survey Results</div>
-      <div class="quad"><div style="background:var(--green)" data-k="D">D<small>Dominant</small></div><div style="background:var(--orange)" data-k="I">I<small>Influential</small></div>
-        <div style="background:var(--tan)" data-k="C">C<small>Compliant</small></div><div style="background:var(--brown)" data-k="S">S<small>Steady</small></div></div>
+      <div class="quad"><div style="background:var(--green)" data-k="D">D<small>Dominant</small></div><div style="background:var(--orange)" data-k="I">I<small>Inspiring</small></div>
+        <div style="background:var(--tan)" data-k="C">C<small>Cautious</small></div><div style="background:var(--brown)" data-k="S">S<small>Supportive</small></div></div>
       <div class="type">You are: I / S</div>
       <div class="res-h" style="margin-top:8px">Your Top Spiritual Gifts</div>
       <div class="gift"><label>Hospitality</label><div class="bar"><i style="background:var(--green)" data-w="100"></i></div><em>9</em></div>
@@ -382,7 +415,7 @@ function chooseHTML(){
     <span class="ct">${icon}${title}</span><ul><li>Sign in with ${bio}</li><li>Your results always in your pocket</li><li>Smooth, full-screen surveys</li></ul></a>`;
   const webCard = (cls, title) => `<a class="choice ${cls}" id="webChoice" href="${WEB_APP}"><span class="ct">${globe}${title}</span><ul><li>Nothing to install</li><li>Works in any browser</li></ul></a>`;
   let pill, body;
-  if (IS_IOS){ pill = phone + 'Looks like you’re on an iPhone'; body = appCard(APP_STORE, apple, 'Get the iPhone app', 'Face ID') + webCard('secondary', 'Continue on the web'); }
+  if (IS_IOS){ pill = phone + 'Looks like you’re on an ' + DEV; body = appCard(APP_STORE, apple, 'Get the ' + DEV + ' app', 'Face ID') + webCard('secondary', 'Continue on the web'); }
   else if (IS_ANDROID){ pill = phone + 'Looks like you’re on Android'; body = appCard(PLAY_STORE, droid, 'Get the Android app', 'your fingerprint') + webCard('secondary', 'Continue on the web'); }
   else { pill = desk + 'Looks like you’re on a computer'; body = webCard('primary', 'Start on the web') +
     `<p class="other-store" id="otherStore">On your phone? Get the <a href="${APP_STORE}">iPhone</a> or <a href="${PLAY_STORE}">Android</a> app</p>`; }
@@ -390,7 +423,7 @@ function chooseHTML(){
     <button class="replay" type="button" data-go="again">Watch the tour again</button></div>`;
 }
 const CHOOSE_SAY = IS_IOS
-  ? ['Looks like you’re on an iPhone.', 'For the best experience, get the free Discover More app from the App Store.', 'Or, continue right here on the web. Nothing to install.']
+  ? ['Looks like you’re on an ' + DEV + '.', 'For the best experience, get the free Discover More app from the App Store.', 'Or, continue right here on the web. Nothing to install.']
   : IS_ANDROID
   ? ['Looks like you’re on Android.', 'For the best experience, get the free Discover More app from Google Play.', 'Or, continue right here on the web. Nothing to install.']
   : ['Looks like you’re on a computer.', 'Start right here on the web. Nothing to install.', 'On your phone? The iPhone and Android apps are free.'];
@@ -410,12 +443,12 @@ const SC = [
 // 1 WHAT YOU'LL DISCOVER
 {html:() => `${STAGE_BADGE}<div class="inner">${HEAD('What you’ll discover', 'Two short surveys. <span class="green">One big picture.</span>')}
   <div class="cards">
-   <div class="card"><div class="badge" style="background:var(--green)">DISC</div><div><h3>Your personality</h3><p>20 statements, rated 1 to 5. Dominant, Influential, Steady or Compliant?</p></div></div>
+   <div class="card"><div class="badge" style="background:var(--green)">DISC</div><div><h3>Your personality</h3><p>20 statements, rated 1 to 5. Dominant, Inspiring, Supportive or Cautious?</p></div></div>
    <div class="card"><div class="badge" style="background:var(--orange)">72</div><div><h3>Your spiritual gifts</h3><p>72 statements, rated 1 to 3, across 24 gifts from Administration to Wisdom.</p></div></div>
    <div class="card"><div class="badge" style="background:var(--brown)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></div><div><h3>Where to serve</h3><p>Your top gifts come with Bible verses and the teams that fit you best.</p></div></div>
   </div></div>`,
  steps:[
-  {say:'First, a personality survey. Twenty quick statements show how you’re wired: Dominant, Influential, Steady, or Compliant.', li:0},
+  {say:'First, a personality survey. Twenty quick statements show how you’re wired: Dominant, Inspiring, Supportive, or Cautious.', li:0},
   {say:'Then, a spiritual gifts survey. Seventy-two statements across twenty-four gifts.', li:1},
   {say:'And at the end, you’ll see where you could serve, with the teams that fit you best.', li:2}]},
 
@@ -456,7 +489,7 @@ function dots(){
     b.className = i === cur ? 'on' : i < cur ? 'seen' : ''; b.onclick = () => { if (started) enter(i, true); }; d.appendChild(b); });
 }
 function nbar(f){ $('nbar').firstChild.style.width = (f * 100) + '%'; }
-function stop(){ run++; if (HAS_TTS) speechSynthesis.cancel(); }
+function stop(){ run++; try { AUD.pause(); } catch (e) {} if (HAS_TTS) speechSynthesis.cancel(); }
 function clean(){ $('cap').classList.remove('has'); document.querySelectorAll('.conf,.ripple').forEach(e => e.remove()); }
 function setPlay(){ $('play').textContent = !started ? 'Start' : playing ? 'Pause' : (cur === SC.length - 1 && idx >= SC[cur].steps.length ? 'Replay' : 'Play'); }
 function navState(){ $('prev').disabled = !started || cur === 0; $('next').disabled = !started || cur === SC.length - 1; }
@@ -492,8 +525,13 @@ async function resumeAt(k){
 
 function begin(){
   if (started) return;
-  const vc = $('voiceChk'); voiceOn = !!(vc && vc.checked && HAS_TTS); setVoiceBtn();
-  if (voiceOn){ if (!voiceObj) voiceObj = pickVoice(); try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {} } // unlock iOS inside the tap
+  const vc = $('voiceChk'); voiceOn = !!(vc && vc.checked); setVoiceBtn();
+  if (voiceOn){
+    // unlock audio inside the tap (iOS only allows the first play() from a user gesture)
+    try { AUD.src = 'audio/silence.m4a'; const p = AUD.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    if (!voiceObj) voiceObj = pickVoice(); try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
+    SC.forEach(sc => sc.steps.forEach(st => { try { fetch(clipFor(st.say)); } catch (e) {} }));   // warm the cache
+  }
   started = true; playing = true; setPlay(); navState();
   const g = SC[0].el.querySelector('.gate'); if (g) g.style.visibility = 'hidden';
   dots(); idx = 0; playLoop(++run);
@@ -515,8 +553,9 @@ $('play').onclick = () => {
 $('next').onclick = () => enter(Math.min(cur + 1, SC.length - 1), true);
 $('prev').onclick = () => enter(Math.max(cur - 1, 0), true);
 $('voice').onclick = () => {
-  voiceOn = !voiceOn && HAS_TTS; setVoiceBtn();
-  if (!voiceOn && HAS_TTS) speechSynthesis.cancel();
+  voiceOn = !voiceOn; setVoiceBtn();
+  if (!voiceOn){ try { AUD.pause(); } catch (e) {} if (HAS_TTS) speechSynthesis.cancel(); }
+  else { try { AUD.src = 'audio/silence.m4a'; AUD.play().catch(() => {}); } catch (e) {} }
   const vc = $('voiceChk'); if (vc) vc.checked = voiceOn;
 };
 addEventListener('keydown', e => {
