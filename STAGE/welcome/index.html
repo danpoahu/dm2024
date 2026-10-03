@@ -222,27 +222,61 @@ const PLAY_STORE = 'https://play.google.com/store/apps/details?id=app.anchor.dis
 const WEB_APP = '../app/';
 
 // ---------- voice (same picker as the LDAH deck engine) ----------
+// Voices built into the device first (Ava/Samantha on Mac + iPhone, Google's on-device voices on Android).
+// Chrome's "Google US English" on a Mac is an ONLINE voice: slow to start and it drops lines, so it is last resort.
 function pickVoice(){
   const vs = speechSynthesis.getVoices(); if (!vs.length) return null;
-  const pref = [v=>v.name==='Google US English', v=>/Ava/.test(v.name)&&/(Premium|Enhanced)/.test(v.name), v=>/Samantha/.test(v.name)&&/(Premium|Enhanced)/.test(v.name),
-    v=>/^Ava/.test(v.name), v=>/Samantha/.test(v.name), v=>v.lang==='en-US', v=>/^en/.test(v.lang)];
-  for (const f of pref){ const m = vs.find(f); if (m) return m; } return null;
+  const en = vs.filter(v => /^en(-|_|$)/i.test(v.lang));
+  const local = en.filter(v => v.localService);
+  const pref = [v=>/Ava/.test(v.name)&&/(Premium|Enhanced)/.test(v.name), v=>/Samantha/.test(v.name)&&/(Premium|Enhanced)/.test(v.name),
+    v=>/^Ava\b/.test(v.name), v=>/^Samantha\b/.test(v.name), v=>/Google/.test(v.name)&&v.lang==='en-US', v=>v.lang==='en-US', v=>true];
+  for (const pool of [local, en]) for (const f of pref){ const m = pool.find(f); if (m) return m; }
+  return null;
 }
 const HAS_TTS = 'speechSynthesis' in window;
 if (HAS_TTS){ voiceObj = pickVoice(); speechSynthesis.onvoiceschanged = () => { voiceObj = pickVoice(); }; }
 
+let liveUtt = null;   // hold a reference: Chrome can garbage-collect a playing utterance and its end event never fires
 function speak(text, t){
   return new Promise(res => {
     const c = $('cap'); c.textContent = text; c.classList.add('has');
     const words = text.split(/\s+/).length, t0 = Date.now();
     if (!voiceOn){ setTimeout(res, words * 300 + 900); return; }   // reading pace when muted
-    const guard = setTimeout(done, words * 520 + 4000);
-    function done(){ clearTimeout(guard); const min = words * 260, e = Date.now() - t0; e < min ? setTimeout(res, min - e) : res(); }
-    const u = new SpeechSynthesisUtterance(text.replace(/DISC/g, 'disk'));
-    if (voiceObj){ u.voice = voiceObj; u.lang = voiceObj.lang; } else u.lang = 'en-US';
-    u.onend = done; u.onerror = done;
-    speechSynthesis.cancel();
-    setTimeout(() => { t === run ? speechSynthesis.speak(u) : done(); }, 60);
+    let finished = false, tries = 0, startWatch = null, curU = null;
+    const guard = setTimeout(done, words * 520 + 5000);
+    function done(){
+      if (finished) return; finished = true; clearTimeout(guard); clearTimeout(startWatch);
+      const min = words * 260, e = Date.now() - t0; e < min ? setTimeout(res, min - e) : res();
+    }
+    function attempt(){
+      if (t !== run) return done();
+      tries++;
+      const u = new SpeechSynthesisUtterance(text.replace(/DISC/g, 'disk'));
+      if (voiceObj){ u.voice = voiceObj; u.lang = voiceObj.lang; } else u.lang = 'en-US';
+      let started = false;
+      u.onstart = () => { started = true; clearTimeout(startWatch); };
+      u.onend = () => { if (liveUtt === u) liveUtt = null; done(); };
+      u.onerror = e => {
+        if (liveUtt === u) liveUtt = null;
+        // our own cancel (scene change / pause) -> just finish; anything else gets one retry
+        if (e.error === 'interrupted' || e.error === 'canceled' || tries >= 2) done(); else retry();
+      };
+      liveUtt = u; curU = u;
+      try { speechSynthesis.resume(); } catch (e) {}   // Chrome can get stuck "paused"
+      speechSynthesis.speak(u);
+      // If the line never starts, try once more; after that the caption carries on at reading pace
+      startWatch = setTimeout(() => { if (!started && !finished) (tries < 2 ? retry() : (speechSynthesis.cancel(), done())); }, 2500);
+    }
+    function retry(){
+      clearTimeout(startWatch);
+      if (finished || t !== run) return done();
+      if (curU){ curU.onstart = curU.onend = curU.onerror = null; }   // so cancelling the stuck line doesn't end this step
+      if (voiceObj && !voiceObj.localService){ const v = pickVoice(); if (v && v.localService) voiceObj = v; }
+      speechSynthesis.cancel(); setTimeout(attempt, 120);
+    }
+    // only cancel when something is actually queued; cancel-then-speak back to back can swallow the new line
+    if (speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(attempt, 120); }
+    else attempt();
   });
 }
 
