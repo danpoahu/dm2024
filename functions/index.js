@@ -1647,7 +1647,7 @@ exports.dmSignupLogReport = functions
 <body>
 <header>
   <h1>Discover More — Signup Log</h1>
-  <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · <span id="gen">Updated ${hst(now)}</span><span id="live" class="live"><span class="dot"></span><span id="liveTxt">Connecting…</span></span></div>
+  <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · <span id="gen">Updated ${hst(now)}</span><span id="live" class="live"><span class="dot"></span><span id="liveTxt">Connecting…</span></span><button id="snd" class="chip" style="margin-left:0.6rem;padding:0.2rem 0.7rem;font-size:0.8rem;">Sound: off</button></div>
 </header>
 
 <div class="stats">
@@ -1797,6 +1797,8 @@ async function refreshData() {
   if (!r.ok) throw new Error("HTTP " + r.status);
   const data = await r.json();
   const before = new Map(PEOPLE.map((p) => [p.id, JSON.stringify([p.stage, p.flags, p.emails.length, p.lastSaved])]));
+  const newcomers = data.people.filter((p) => !before.has(p.id)).length;
+  if (newcomers) ring();
   FRESH = new Set(data.people.filter((p) => before.get(p.id) !== JSON.stringify([p.stage, p.flags, p.emails.length, p.lastSaved])).map((p) => p.id));
   PEOPLE = data.people;
   if (data.thisMonth && ![...msel.options].some((o) => o.value === data.thisMonth)) {
@@ -1807,6 +1809,40 @@ async function refreshData() {
   setTimeout(() => { FRESH = new Set(); }, 6500);
 }
 window.refreshData = refreshData;
+
+// New-signup chime. Browsers only allow sound after a click on the page, so the
+// Sound button turns it on; the choice is remembered and resumes on the first click after a reload.
+let audio = null, soundOn = false;
+try { soundOn = localStorage.getItem("dmSignupSound") === "1"; } catch (e) {}
+const sndBtn = document.getElementById("snd");
+function showSnd() {
+  const ready = audio && audio.state === "running";
+  sndBtn.textContent = soundOn ? (ready ? "Sound: on" : "Sound: on (click page)") : "Sound: off";
+  sndBtn.classList.toggle("on", soundOn && ready);
+}
+function wake() { if (!soundOn) return; if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume().then(showSnd); }
+function bell(t, freq) {
+  [[1, 0.22], [2.76, 0.05], [5.4, 0.02]].forEach(([mult, vol]) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "sine"; o.frequency.value = freq * mult;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 1.2);
+  });
+}
+function ring() {
+  if (!soundOn || !audio || audio.state !== "running") return;
+  const t = audio.currentTime + 0.02;
+  bell(t, 1046.5); bell(t + 0.16, 1318.5); bell(t + 0.32, 1568);
+}
+sndBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  soundOn = !soundOn;
+  try { localStorage.setItem("dmSignupSound", soundOn ? "1" : "0"); } catch (err) {}
+  wake(); showSnd();
+  if (soundOn) setTimeout(ring, 150);
+});
+document.addEventListener("click", wake);
+showSnd();
 function jump(id) {
   document.getElementById("q").value = ""; msel.value = ""; filter = "all";
   document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x.dataset.f === "all"));
