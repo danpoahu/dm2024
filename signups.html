@@ -32,6 +32,7 @@
     <a class="back" href="info.html">&larr; Stats</a>
     <span class="accent"></span>
     <h1>Signup Log</h1>
+    <span style="color:#757575;font-size:0.8rem;font-weight:600;">page v3</span>
   </div>
   <div id="frameHost" style="flex:1;display:flex;"></div>
 </div>
@@ -73,6 +74,8 @@
     const f = document.createElement('iframe');
     f.src = FN_HOST + '/' + FN_NAME + '?key=' + encodeURIComponent(ADMIN_KEY);
     f.title = 'Signup Log';
+    // Let the report inside the frame play its new-signup chime.
+    f.allow = 'autoplay';
     f.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
     host.appendChild(f);
   }

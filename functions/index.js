@@ -1646,7 +1646,7 @@ exports.dmSignupLogReport = functions
 </head>
 <body>
 <header>
-  <h1>Discover More — Signup Log</h1>
+  <h1>Discover More — Signup Log <span style="font-size:0.9rem;color:#757575;font-weight:600;">v3</span></h1>
   <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · <span id="gen">Updated ${hst(now)}</span><span id="live" class="live"><span class="dot"></span><span id="liveTxt">Connecting…</span></span><button id="snd" class="chip" style="margin-left:0.6rem;padding:0.2rem 0.7rem;font-size:0.8rem;">Sound: off</button></div>
 </header>
 
@@ -1817,10 +1817,19 @@ try { soundOn = localStorage.getItem("dmSignupSound") === "1"; } catch (e) {}
 const sndBtn = document.getElementById("snd");
 function showSnd() {
   const ready = audio && audio.state === "running";
-  sndBtn.textContent = soundOn ? (ready ? "Sound: on" : "Sound: on (click page)") : "Sound: off";
+  sndBtn.textContent = soundOn ? (ready ? "Sound: on" : "Click here to allow sound") : "Sound: off";
   sndBtn.classList.toggle("on", soundOn && ready);
+  sndBtn.style.background = soundOn && !ready ? "#FF9800" : "";
+  sndBtn.style.color = soundOn && !ready ? "#fff" : "";
 }
-function wake() { if (!soundOn) return; if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume().then(showSnd); }
+function wake() {
+  if (!soundOn) return;
+  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  audio.resume().then(showSnd).catch(showSnd);
+  // Safari unlocks audio only once something actually plays inside the click.
+  const o = audio.createOscillator(), g = audio.createGain(); g.gain.value = 0.0001;
+  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.05);
+}
 function bell(t, freq) {
   [[1, 0.22], [2.76, 0.05], [5.4, 0.02]].forEach(([mult, vol]) => {
     const o = audio.createOscillator(), g = audio.createGain();
@@ -1836,6 +1845,8 @@ function ring() {
 }
 sndBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  // A click while sound is on but blocked just unlocks it (and plays a test chime).
+  if (soundOn && !(audio && audio.state === "running")) { wake(); setTimeout(() => { showSnd(); ring(); }, 200); return; }
   soundOn = !soundOn;
   try { localStorage.setItem("dmSignupSound", soundOn ? "1" : "0"); } catch (err) {}
   wake(); showSnd();
