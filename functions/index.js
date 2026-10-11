@@ -1590,6 +1590,10 @@ exports.dmSignupLogReport = functions
       resultsEmailStr: hst(p.resultsEmailAt), resumeLastStr: hst(p.resumeLastAt),
       emails: p.emails.map((e) => Object.assign({}, e, { atStr: hst(e.at) })),
     }));
+    if (req.query.format === "json") {
+      res.set("Cache-Control", "no-store");
+      return res.json({ people: out, generated: hst(now), thisMonth: monthKey(now) });
+    }
     const json = JSON.stringify(out).replace(/</g, "\\u003c");
 
     const thisMonth = monthKey(now);
@@ -1622,6 +1626,13 @@ exports.dmSignupLogReport = functions
   .p-complete { background: #e8f5ec; color: #2E7D32; } .p-gifts { background: #fff3e0; color: #a05400; } .p-personality { background: #eef1f5; color: #5a6478; }
   .flag { display: inline-block; margin: 0 0.3rem 0.3rem 0; padding: 0.1em 0.5em; border-radius: 4px; font-size: 0.75rem; }
   .f-stuck { background: #fff3e0; color: #a05400; } .f-dup { background: #eef4fb; color: #1d5a91; } .f-email, .f-data { background: #fdecea; color: #b3261e; } .f-test { background: #eee; color: #666; }
+  tr.fresh td { animation: fresh 6s ease-out; }
+  @keyframes fresh { 0% { background: #fff3c4; } 100% { background: transparent; } }
+  .live { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #5a6478; margin-left: 0.6rem; }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa3ad; }
+  .live.on .dot { background: #2E7D32; box-shadow: 0 0 0 0 rgba(46,125,50,0.6); animation: pulse 2s infinite; }
+  .live.err .dot { background: #d32f2f; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46,125,50,0.5); } 70% { box-shadow: 0 0 0 7px rgba(46,125,50,0); } 100% { box-shadow: 0 0 0 0 rgba(46,125,50,0); } }
   .detail td { background: #fbfcfb; padding: 1rem 1.2rem 1.3rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.4rem 2rem; font-size: 0.88rem; }
   .grid b { color: #5a6478; font-weight: 600; display: inline-block; min-width: 9.5em; }
@@ -1636,7 +1647,7 @@ exports.dmSignupLogReport = functions
 <body>
 <header>
   <h1>Discover More — Signup Log</h1>
-  <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · Generated ${hst(now)}</div>
+  <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · <span id="gen">Updated ${hst(now)}</span><span id="live" class="live"><span class="dot"></span><span id="liveTxt">Connecting…</span></span></div>
 </header>
 
 <div class="stats">
@@ -1667,7 +1678,8 @@ exports.dmSignupLogReport = functions
 <footer>Project <code>dm-auth-65cc4</code> · collections <code>results</code> + <code>emailLog</code> · Answers are saved only when a whole survey is finished, so someone who quits halfway loses that survey's answers · Endpoint <code>dmSignupLogReport</code></footer>
 
 <script>
-const PEOPLE = ${json};
+let PEOPLE = ${json};
+let FRESH = new Set();
 const BASE = ${JSON.stringify(baseUrl)}, KEY = ${JSON.stringify(adminKey)};
 const STAGE = { personality: ["Signed up", "Hasn't finished the Personality survey yet"], gifts: ["Personality done", "Finished Personality; Spiritual Gifts not finished"], complete: ["Finished both", ""] };
 const DEVICE = { Web: "Web", IOS: "iPhone app", Android: "Android app", ANDROID: "Android app", "?": "Unknown (older record)" };
@@ -1765,7 +1777,7 @@ function render() {
     return true;
   });
   document.getElementById("rows").innerHTML = list.length ? list.map((p) =>
-    '<tr class="row' + (p.id === openId ? ' open' : '') + '" onclick="toggle(\\'' + p.id + '\\')">' +
+    '<tr class="row' + (p.id === openId ? ' open' : '') + (FRESH.has(p.id) ? ' fresh' : '') + '" onclick="toggle(\\'' + p.id + '\\')">' +
       '<td><strong>' + esc(p.name || "(no name)") + '</strong>' + (p.phone ? '<div class="sub2">' + esc(p.phone) + '</div>' : '') + '</td>' +
       '<td class="hide-sm"><code>' + esc(p.email) + '</code></td>' +
       '<td>' + esc(p.createdStr) + '</td>' +
@@ -1777,6 +1789,24 @@ function render() {
   kpis();
   document.getElementById("count").textContent = list.length + " of " + PEOPLE.length + " shown · click a row for details";
 }
+// Live updates: the listener below calls this when anything changes.
+// Rows that are new or changed flash yellow; filters, search and the open row are kept.
+async function refreshData() {
+  const url = location.href + (location.href.includes("?") ? "&" : "?") + "format=json";
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const data = await r.json();
+  const before = new Map(PEOPLE.map((p) => [p.id, JSON.stringify([p.stage, p.flags, p.emails.length, p.lastSaved])]));
+  FRESH = new Set(data.people.filter((p) => before.get(p.id) !== JSON.stringify([p.stage, p.flags, p.emails.length, p.lastSaved])).map((p) => p.id));
+  PEOPLE = data.people;
+  if (data.thisMonth && ![...msel.options].some((o) => o.value === data.thisMonth)) {
+    const o = document.createElement("option"); o.value = data.thisMonth; o.textContent = data.thisMonth; msel.insertBefore(o, msel.firstChild);
+  }
+  document.getElementById("gen").textContent = "Updated " + data.generated;
+  render();
+  setTimeout(() => { FRESH = new Set(); }, 6500);
+}
+window.refreshData = refreshData;
 function jump(id) {
   document.getElementById("q").value = ""; msel.value = ""; filter = "all";
   document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x.dataset.f === "all"));
@@ -1806,6 +1836,28 @@ document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", ()
   document.querySelectorAll(".chip").forEach((x) => x.classList.remove("on")); c.classList.add("on"); filter = c.dataset.f; render();
 }));
 render();
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js";
+const app = initializeApp({ apiKey: "AIzaSyBNqa6JHHe2yuriloiCA_yjzzBAf0KQmbY", authDomain: "dm-auth-65cc4.firebaseapp.com", projectId: "dm-auth-65cc4", appId: "1:331110328467:web:060b48abefdff486330566" }, "signupLog");
+const db = getFirestore(app);
+const live = document.getElementById("live"), txt = document.getElementById("liveTxt");
+const status = (cls, t) => { live.className = "live " + cls; txt.textContent = t; };
+let timer = null, first = true;
+function changed() {
+  if (first) { first = false; status("on", "Live"); return; }
+  clearTimeout(timer);
+  status("on", "Change seen, updating…");
+  timer = setTimeout(async () => {
+    try { await window.refreshData(); status("on", "Live · last change " + new Date().toLocaleTimeString("en-US", { timeZone: "Pacific/Honolulu", hour: "numeric", minute: "2-digit" })); }
+    catch (e) { status("err", "Update failed, retrying on next change"); console.error(e); }
+  }, 2500);
+}
+const fail = (e) => { status("err", "Not live, reload the page"); console.error(e); };
+// Whole results collection: after the first load Firestore only sends the docs that change.
+// Every reminder/results email also stamps the person's results doc, so this catches emails too.
+onSnapshot(collection(db, "results"), () => changed(), fail);
 </script>
 </body></html>`;
 
