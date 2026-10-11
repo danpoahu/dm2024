@@ -1490,3 +1490,326 @@ exports.dmHelpChatReport = functions
     res.set("Content-Type", "text/html; charset=utf-8");
     return res.send(html);
   });
+
+// Signup Log: one row per person, built to help diagnose why someone is stuck.
+// Read-only. Answers are only saved when a whole survey is finished (each new
+// record starts with every answer set to 1), so the stage comes from discH
+// (personality finished) and `updated` (gifts finished), never from answer counts.
+exports.dmSignupLogReport = functions
+  .region("us-central1")
+  .runWith({ secrets: ["DM_ADMIN_KEY"], maxInstances: 1, timeoutSeconds: 60 })
+  .https.onRequest(async (req, res) => {
+    if (req.query.key !== (process.env.DM_ADMIN_KEY || "").trim()) return res.status(403).send("Forbidden");
+
+    const db = admin.firestore();
+    const baseUrl = "https://us-central1-dm-auth-65cc4.cloudfunctions.net";
+    const adminKey = encodeURIComponent(req.query.key);
+    const now = Date.now();
+    const DAY = 86400000;
+    const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
+
+    const [resultsSnap, logSnap] = await Promise.all([
+      db.collection("results").get(),
+      db.collection("emailLog").orderBy("sentAt", "desc").get(),
+    ]);
+
+    // Emails per person, newest first
+    const emailsByDoc = {};
+    logSnap.forEach((doc) => {
+      const d = doc.data();
+      if (!d.userDocId) return;
+      (emailsByDoc[d.userDocId] = emailsByDoc[d.userDocId] || []).push({
+        logId: doc.id, kind: d.kind || "?", at: ms(d.sentAt), trigger: d.triggeredBy || "", forced: !!d.forced,
+      });
+    });
+
+    const TYPO_DOMAINS = /@(gmial|gmal|gmaill|gnail|gamil|gmali|yaho|yahooo|hotmial|hotmal|iclod|icoud|outlok)\.|\.(con|cmo|ocm|comm|cm|co\.)$/i;
+    const people = [];
+    const byEmail = {};
+    const byName = {};
+    resultsSnap.forEach((snap) => {
+      const d = snap.data();
+      const email = String(d.EMAIL || "").trim().toLowerCase();
+      const name = String(d.NAME || "").trim();
+      const p = {
+        id: snap.id,
+        name, email,
+        phone: String(d.Phone1 || "").trim(),
+        env: d.env || "?",
+        team: d.Team || "",
+        created: ms(d.created),
+        lastSaved: snap.updateTime ? snap.updateTime.toMillis() : 0,
+        personalityDone: !!d.discH,
+        complete: !!(d.updated && d.updated !== "1"),
+        completedOn: d.updated && d.updated !== "1" ? d.updated : "",
+        disc: d.discH ? d.discH + (d.discL ? "/" + d.discL : "") : "",
+        resultsEmailAt: ms(d.resultsEmailSentAt),
+        resumeCount: Number(d.resumeEmailCount || 0),
+        resumeLastAt: ms(d.resumeEmailSentAt),
+        emails: emailsByDoc[snap.id] || [],
+        flags: [],
+      };
+      p.stage = p.complete ? "complete" : p.personalityDone ? "gifts" : "personality";
+      people.push(p);
+      if (email) (byEmail[email] = byEmail[email] || []).push(p);
+      if (name) (byName[name.toLowerCase()] = byName[name.toLowerCase()] || []).push(p);
+    });
+
+    // Only flag "stuck" for recent signups, and only expect a results email for
+    // web records finished after results emails started (older records never got one).
+    const RECENT = 45 * DAY;
+    const firstResultsEmail = Math.min(...people.map((p) => p.resultsEmailAt).filter(Boolean), now);
+    for (const p of people) {
+      const f = p.flags;
+      const recent = now - p.created <= RECENT;
+      const sameEmail = p.email ? byEmail[p.email].length : 0;
+      if (sameEmail > 1) f.push({ k: "dup", t: `Same email on ${sameEmail} records` });
+      const sameName = p.name ? byName[p.name.toLowerCase()].filter((o) => o.email !== p.email).length : 0;
+      if (sameName > 0) f.push({ k: "dup", t: `Same name on ${sameName} other record${sameName > 1 ? "s" : ""} (different email)` });
+      if (!p.email) f.push({ k: "email", t: "No email" });
+      else if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(p.email) || TYPO_DOMAINS.test(p.email)) f.push({ k: "email", t: "Email looks mistyped" });
+      if (!p.name) f.push({ k: "data", t: "No name" });
+      const idle = p.lastSaved ? now - p.lastSaved : now - p.created;
+      if (!p.complete && recent && idle >= 2 * DAY) {
+        f.push({ k: "stuck", t: p.personalityDone
+          ? `Stopped before Spiritual Gifts for ${Math.floor(idle / DAY)} days`
+          : `Never finished Personality (${Math.floor(idle / DAY)} days)` });
+      }
+      if (!p.complete && recent && p.resumeCount >= 3) f.push({ k: "stuck", t: "Got all 3 reminder emails, still not finished" });
+      const hasResultsLog = p.emails.some((e) => e.kind === "results");
+      if (p.complete && p.env === "Web" && p.lastSaved > firstResultsEmail && !p.resultsEmailAt && !hasResultsLog) f.push({ k: "email", t: "Finished but results email never sent" });
+      if (/\btest\b/i.test(p.name) || /test/i.test(p.email.split("@")[0] || "")) f.push({ k: "test", t: "Looks like a test record" });
+    }
+
+    people.sort((a, b) => b.created - a.created);
+
+    const hst = (t) => t ? new Date(t).toLocaleString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    const monthKey = (t) => t ? new Date(t).toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" }).slice(0, 7) : "";
+    const out = people.map((p) => Object.assign({}, p, {
+      createdStr: hst(p.created), lastSavedStr: hst(p.lastSaved), month: monthKey(p.created),
+      resultsEmailStr: hst(p.resultsEmailAt), resumeLastStr: hst(p.resumeLastAt),
+      emails: p.emails.map((e) => Object.assign({}, e, { atStr: hst(e.at) })),
+    }));
+    const json = JSON.stringify(out).replace(/</g, "\\u003c");
+
+    const thisMonth = monthKey(now);
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>DM Signup Log</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1A1A1A; line-height: 1.5; max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+  header { border-bottom: 3px solid #4CAF50; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.85rem; color: #2E7D32; }
+  header .sub { color: #5a6478; font-size: 0.95rem; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin: 1rem 0 1.5rem; }
+  .stat { background: #F5F1E8; border-radius: 8px; padding: 0.85rem 1rem; }
+  .stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #757575; font-weight: 600; }
+  .stat .val { font-size: 1.75rem; font-weight: 700; color: #1B4B5A; line-height: 1.1; margin-top: 0.1rem; }
+  .stat.warn .val { color: #a05400; }
+  .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+  .tools input, .tools select { padding: 0.5rem 0.7rem; border: 1px solid #cfd5dd; border-radius: 6px; font: inherit; font-size: 0.9rem; }
+  .tools input { flex: 1; min-width: 220px; }
+  .chip { border: 1px solid #cfd5dd; background: #fff; border-radius: 999px; padding: 0.35rem 0.85rem; font: inherit; font-size: 0.85rem; cursor: pointer; color: #1B4B5A; }
+  .chip.on { background: #2E7D32; border-color: #2E7D32; color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid #e8eaed; vertical-align: top; }
+  th { background: #F5F1E8; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6478; border-bottom: 2px solid #d4b896; }
+  tr.row { cursor: pointer; } tr.row:hover td { background: #fafaf7; }
+  tr.open td { background: #f6faf6; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.82rem; color: #1B4B5A; }
+  .sub2 { color: #757575; font-size: 0.8rem; }
+  .pill { display: inline-block; padding: 0.1em 0.55em; border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .p-complete { background: #e8f5ec; color: #2E7D32; } .p-gifts { background: #fff3e0; color: #a05400; } .p-personality { background: #eef1f5; color: #5a6478; }
+  .flag { display: inline-block; margin: 0 0.3rem 0.3rem 0; padding: 0.1em 0.5em; border-radius: 4px; font-size: 0.75rem; }
+  .f-stuck { background: #fff3e0; color: #a05400; } .f-dup { background: #eef4fb; color: #1d5a91; } .f-email, .f-data { background: #fdecea; color: #b3261e; } .f-test { background: #eee; color: #666; }
+  .detail td { background: #fbfcfb; padding: 1rem 1.2rem 1.3rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.4rem 2rem; font-size: 0.88rem; }
+  .grid b { color: #5a6478; font-weight: 600; display: inline-block; min-width: 9.5em; }
+  .why { margin: 0.8rem 0; padding: 0.6rem 0.9rem; background: #eef4fb; border-left: 4px solid #8db4d8; border-radius: 0 6px 6px 0; font-size: 0.88rem; }
+  .btn { display: inline-block; border: none; border-radius: 4px; padding: 0.4em 0.9em; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; text-decoration: none; color: #fff; margin-right: 0.4rem; }
+  .b-green { background: #4CAF50; } .b-orange { background: #FFA34D; } .b-blue { background: #1B4B5A; }
+  .empty { text-align: center; color: #757575; padding: 2rem; font-style: italic; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde6; color: #757575; font-size: 0.82rem; }
+  @media (max-width: 760px) { .hide-sm { display: none; } body { padding: 1rem 0.75rem 3rem; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Discover More — Signup Log</h1>
+  <div class="sub">Everyone who has signed up, where they got to, and anything that looks wrong · Times in Hawaiʻi time · Generated ${hst(now)}</div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="label">Signups</div><div class="val" id="kSign"></div></div>
+  <div class="stat"><div class="label">Finished both</div><div class="val" id="kDone"></div></div>
+  <div class="stat"><div class="label">Not finished</div><div class="val" id="kOpen"></div></div>
+  <div class="stat warn"><div class="label">Duplicate records</div><div class="val" id="kDup"></div></div>
+  <div class="stat warn"><div class="label">May need help</div><div class="val" id="kHelp"></div></div>
+</div>
+
+<div class="tools">
+  <input id="q" type="search" placeholder="Search name, email or phone">
+  <select id="month"></select>
+  <button class="chip on" data-f="all">All</button>
+  <button class="chip" data-f="help">May need help</button>
+  <button class="chip" data-f="dup">Duplicates</button>
+  <button class="chip" data-f="personality">Signed up only</button>
+  <button class="chip" data-f="gifts">Personality done</button>
+  <button class="chip" data-f="complete">Finished</button>
+</div>
+
+<table>
+  <thead><tr><th>Name</th><th class="hide-sm">Email</th><th>Signed up</th><th>Where they are</th><th class="hide-sm">Device</th><th>Notes</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div id="count" class="sub2" style="margin-top:0.6rem;"></div>
+
+<footer>Project <code>dm-auth-65cc4</code> · collections <code>results</code> + <code>emailLog</code> · Answers are saved only when a whole survey is finished, so someone who quits halfway loses that survey's answers · Endpoint <code>dmSignupLogReport</code></footer>
+
+<script>
+const PEOPLE = ${json};
+const BASE = ${JSON.stringify(baseUrl)}, KEY = ${JSON.stringify(adminKey)};
+const STAGE = { personality: ["Signed up", "Hasn't finished the Personality survey yet"], gifts: ["Personality done", "Finished Personality; Spiritual Gifts not finished"], complete: ["Finished both", ""] };
+const DEVICE = { Web: "Web", IOS: "iPhone app", Android: "Android app", ANDROID: "Android app", "?": "Unknown (older record)" };
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]));
+let filter = "all", openId = null;
+
+const THIS_MONTH = ${JSON.stringify(thisMonth)};
+const months = [...new Set([THIS_MONTH, ...PEOPLE.map((p) => p.month).filter(Boolean)])].sort().reverse();
+const msel = document.getElementById("month");
+months.forEach((m) => { const o = document.createElement("option"); o.value = m;
+  o.textContent = new Date(m + "-15").toLocaleDateString("en-US", { month: "long", year: "numeric" }) + (m === THIS_MONTH ? " (this month)" : ""); msel.appendChild(o); });
+{ const o = document.createElement("option"); o.value = ""; o.textContent = "All months"; msel.appendChild(o); }
+msel.value = THIS_MONTH;
+const isHelp = (p) => p.flags.some((f) => f.k !== "test");
+const isDup = (p) => p.flags.some((f) => f.k === "dup");
+function kpis() {
+  const inMonth = PEOPLE.filter((p) => !msel.value || p.month === msel.value);
+  const set = (id, v) => { document.getElementById(id).textContent = v; };
+  set("kSign", inMonth.length); set("kDone", inMonth.filter((p) => p.complete).length);
+  set("kOpen", inMonth.filter((p) => !p.complete).length); set("kDup", inMonth.filter(isDup).length);
+  set("kHelp", inMonth.filter(isHelp).length);
+}
+
+function whatToTry(p) {
+  const tips = [];
+  if (p.flags.some((f) => f.t.startsWith("Same email"))) tips.push("They have more than one record. Ask which one they're using; the newest may be empty while an older one holds their answers.");
+  if (p.flags.some((f) => f.t.startsWith("Same name"))) tips.push("Someone with the same name signed up with a different email. They may have typed a different email the second time.");
+  if (p.flags.some((f) => f.t === "Email looks mistyped")) tips.push("The email looks mistyped, so reminder and results emails may never arrive.");
+  if (p.stage === "personality") tips.push("Answers are only saved at the end of each survey. If they closed the page partway through, they start that survey again.");
+  if (p.stage === "gifts") tips.push("Their Personality answers are saved. They only need to do Spiritual Gifts (72 questions); quitting halfway means starting it again.");
+  if (!p.complete && p.resumeCount) tips.push("They've had " + p.resumeCount + " reminder email" + (p.resumeCount > 1 ? "s" : "") + " with a link back in. Ask them to check spam, or press Resend below.");
+  if (p.flags.some((f) => f.t.startsWith("Finished but"))) tips.push("They finished but no results email was sent. Resend below sends it.");
+  if (p.complete && (p.resultsEmailAt || p.emails.some((e) => e.kind === "results"))) tips.push("Results email was sent " + (p.resultsEmailStr || "") + ". If they can't find it, check spam or Resend.");
+  return tips;
+}
+
+function summary(p) {
+  return [
+    "Discover More signup",
+    "Name: " + p.name, "Email: " + p.email, p.phone ? "Phone: " + p.phone : "",
+    "Device: " + (DEVICE[p.env] || p.env),
+    "Signed up: " + p.createdStr, "Last saved: " + p.lastSavedStr,
+    "Where they are: " + STAGE[p.stage][0] + (p.completedOn ? " (" + p.completedOn + ")" : ""),
+    p.disc ? "DISC: " + p.disc : "",
+    "Reminder emails: " + p.resumeCount + (p.resumeLastStr ? " (last " + p.resumeLastStr + ")" : ""),
+    "Results email: " + (p.resultsEmailStr || "not sent"),
+    p.flags.length ? "Notes: " + p.flags.map((f) => f.t).join("; ") : "",
+    "Record: " + p.id,
+  ].filter(Boolean).join("\\n");
+}
+
+function detail(p) {
+  const emails = p.emails.length ? p.emails.map((e) =>
+    '<div>' + esc(e.atStr) + ' · ' + (e.kind === "results" ? "Results" : e.kind === "resume" ? "Reminder" : esc(e.kind)) +
+    (e.trigger && e.trigger !== "unknown" ? ' <span class="sub2">(' + esc(e.trigger) + (e.forced ? ", resent by hand" : "") + ')</span>' : '') +
+    ' · <a target="_blank" href="' + BASE + '/dmViewSentEmail?key=' + KEY + '&logId=' + encodeURIComponent(e.logId) + '">View</a></div>').join("")
+    : '<div class="sub2">None recorded</div>';
+  const tips = whatToTry(p);
+  const others = PEOPLE.filter((o) => o.id !== p.id && ((p.email && o.email === p.email) || (p.name && o.name.toLowerCase() === p.name.toLowerCase())));
+  const otherHtml = others.length ? '<div style="margin:0.6rem 0;"><strong style="font-size:0.85rem;">Their other records</strong>' + others.map((o) =>
+    '<div><a href="#" onclick="event.preventDefault();event.stopPropagation();jump(\\'' + o.id + '\\')">' + esc(o.name) + '</a> · <code>' + esc(o.email) + '</code> · signed up ' + esc(o.createdStr) +
+    ' · <span class="pill p-' + o.stage + '">' + STAGE[o.stage][0] + '</span></div>').join("") + '</div>' : '';
+  return '<tr class="detail"><td colspan="6">' +
+    '<div class="grid">' +
+      '<div><b>Name</b>' + esc(p.name || "(none)") + '</div>' +
+      '<div><b>Email</b><code>' + esc(p.email || "(none)") + '</code></div>' +
+      '<div><b>Phone</b>' + esc(p.phone || "(none)") + '</div>' +
+      '<div><b>Device</b>' + esc(DEVICE[p.env] || p.env) + '</div>' +
+      '<div><b>Signed up</b>' + esc(p.createdStr) + '</div>' +
+      '<div><b>Last saved</b>' + esc(p.lastSavedStr) + '</div>' +
+      '<div><b>Where they are</b>' + esc(STAGE[p.stage][0]) + (p.completedOn ? ' (' + esc(p.completedOn) + ')' : '') + '</div>' +
+      '<div><b>DISC result</b>' + esc(p.disc || "(not yet)") + '</div>' +
+      '<div><b>Reminder emails</b>' + p.resumeCount + (p.resumeLastStr ? ' (last ' + esc(p.resumeLastStr) + ')' : '') + '</div>' +
+      '<div><b>Results email</b>' + esc(p.resultsEmailStr || "not sent") + '</div>' +
+      (p.team ? '<div><b>Team</b>' + esc(p.team) + '</div>' : '') +
+      '<div><b>Record</b><code>' + esc(p.id) + '</code></div>' +
+    '</div>' +
+    (tips.length ? '<div class="why"><strong>What to try</strong><ul style="margin:0.3rem 0 0;padding-left:1.2rem;">' + tips.map((t) => '<li>' + esc(t) + '</li>').join("") + '</ul></div>' : '') +
+    otherHtml +
+    '<div style="margin:0.6rem 0 0.9rem;"><strong style="font-size:0.85rem;">Emails sent</strong>' + emails + '</div>' +
+    '<button class="btn b-blue" onclick="copySummary(event,\\'' + p.id + '\\')">Copy summary</button>' +
+    (p.email ? '<button class="btn b-orange" onclick="resendOne(event,\\'' + p.id + '\\',this)">Resend ' + (p.complete ? "results" : "reminder") + ' email</button>' : '') +
+    '</td></tr>';
+}
+
+function render() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const m = msel.value;
+  const list = PEOPLE.filter((p) => {
+    if (m && p.month !== m) return false;
+    if (filter === "help" && !isHelp(p)) return false;
+    if (filter === "dup" && !isDup(p)) return false;
+    if (["personality", "gifts", "complete"].includes(filter) && p.stage !== filter) return false;
+    if (q && !(p.name.toLowerCase().includes(q) || p.email.includes(q) || p.phone.replace(/\\D/g, "").includes(q.replace(/\\D/g, "") || "~"))) return false;
+    return true;
+  });
+  document.getElementById("rows").innerHTML = list.length ? list.map((p) =>
+    '<tr class="row' + (p.id === openId ? ' open' : '') + '" onclick="toggle(\\'' + p.id + '\\')">' +
+      '<td><strong>' + esc(p.name || "(no name)") + '</strong>' + (p.phone ? '<div class="sub2">' + esc(p.phone) + '</div>' : '') + '</td>' +
+      '<td class="hide-sm"><code>' + esc(p.email) + '</code></td>' +
+      '<td>' + esc(p.createdStr) + '</td>' +
+      '<td><span class="pill p-' + p.stage + '">' + STAGE[p.stage][0] + '</span>' + (p.completedOn ? '<div class="sub2">' + esc(p.completedOn) + '</div>' : '') + '</td>' +
+      '<td class="hide-sm">' + esc(DEVICE[p.env] || p.env) + '</td>' +
+      '<td>' + p.flags.map((f) => '<span class="flag f-' + f.k + '">' + esc(f.t) + '</span>').join("") + '</td>' +
+    '</tr>' + (p.id === openId ? detail(p) : '')).join("")
+    : '<tr><td colspan="6" class="empty">' + (msel.value && !PEOPLE.some((p) => p.month === msel.value) ? "No signups yet in " + msel.options[msel.selectedIndex].text.replace(" (this month)", "") + ". Pick an earlier month above." : "Nobody matches.") + '</td></tr>';
+  kpis();
+  document.getElementById("count").textContent = list.length + " of " + PEOPLE.length + " shown · click a row for details";
+}
+function jump(id) {
+  document.getElementById("q").value = ""; msel.value = ""; filter = "all";
+  document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x.dataset.f === "all"));
+  openId = id; render();
+  const el = document.querySelector("tr.open"); if (el) el.scrollIntoView({ block: "center" });
+}
+function toggle(id) { openId = openId === id ? null : id; render(); }
+function copySummary(ev, id) {
+  ev.stopPropagation();
+  const p = PEOPLE.find((x) => x.id === id);
+  navigator.clipboard.writeText(summary(p)).then(() => { ev.target.textContent = "Copied"; setTimeout(() => { ev.target.textContent = "Copy summary"; }, 1500); });
+}
+async function resendOne(ev, docId, btn) {
+  ev.stopPropagation();
+  if (btn.dataset.armed !== "1") { btn.dataset.label = btn.textContent; btn.dataset.armed = "1"; btn.textContent = "Click again to send"; setTimeout(() => { if (btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.textContent = btn.dataset.label; } }, 4000); return; }
+  btn.dataset.armed = ""; btn.disabled = true; btn.textContent = "Sending...";
+  try {
+    const r = await fetch(BASE + "/dmAdminResend?key=" + KEY + "&docId=" + encodeURIComponent(docId));
+    const data = await r.json();
+    btn.textContent = data.sent ? "Sent" : data.skipped ? "Skipped: " + data.skipped : "Failed";
+    btn.style.background = data.sent ? "#4CAF50" : "#d32f2f";
+  } catch (e) { btn.textContent = "Error"; btn.style.background = "#d32f2f"; }
+}
+document.getElementById("q").addEventListener("input", render);
+msel.addEventListener("change", render);
+document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+  document.querySelectorAll(".chip").forEach((x) => x.classList.remove("on")); c.classList.add("on"); filter = c.dataset.f; render();
+}));
+render();
+</script>
+</body></html>`;
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Cache-Control", "no-store");
+    return res.send(html);
+  });
